@@ -1,0 +1,50 @@
+<html>
+<body>
+<img src="images/toucan-logo-and-name.svg" width=64 height=64>
+<p>
+The Toucan Samples are a set of samples demonstrating the use of the
+experimental <a href="https://github.com/google/toucan/">Toucan</a> language.
+</p>
+
+<p>
+These samples run in Google Chrome and require WebGPU and WebAssembly JavaScript Promise Integration (JSPI).
+</p>
+
+<p>
+To enable JSPI in Chrome, navigate to chrome://flags and enable "Experimental WebAssembly JavaScript Promise Integration (JSPI)". Alternatively, start chrome with the command-line flag --enable-features=WebAssemblyExperimentalJSPI.
+</p>
+
+<p>
+WebGPU is enabled by default on most platforms in Chrome. To enable it on linux, start chrome with the command-line flag --enable-unsafe-webgpu.
+</p>
+
+<table border=1 style="border-collapse: collapse;">
+<tr>
+<col style="background-color: lightgray;">
+<td><a href="triangle.html">triangle.html</a></td>
+<td>The canonical "Hello, Triange" example, now in green.</td>
+</tr>
+<tr>
+<td><a href="shiny.html">shiny.html</a></td>
+<td>An environment-mapped teapot in a skybox of the same texture.</td>
+</tr>
+<tr>
+<td><a href="springy.html">springy.html</a></td>
+<td>A particle physics demo, with a 10x10 grid of particles connected by springs.</td>
+</tr>
+<tr>
+<td><a href="springy-compute.html">springy-compute.html</a></td>
+<td>The same particle physics demo, running in a GPU compute shader.</td>
+</tr>
+<tr>
+<td><a href="springy-3d.html">springy-3d.html</a></td>
+<td>A particle physics demo, with a 20x20x20 mesh of particles.</td>
+</tr>
+<tr>
+<td><a href="springy-compute-3d.html">springy-compute-3d.html</a></td>
+<td>Same as above, running in a compute shader.</td>
+</tr>
+</table>
+
+</body>
+</html>
