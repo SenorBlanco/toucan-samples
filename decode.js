@@ -977,14 +977,15 @@ function dbg(...args) {
 // === Body ===
 
 var ASM_CONSTS = {
-  4223511: ($0, $1, $2, $3) => { var w; var canvas; if (Module.numWindows == 0) { w = window; canvas = w.document.getElementById('canvas'); canvas.width = $2; canvas.height = $3; Module.requestFullscreen = () => { canvas.requestFullscreen(); } } else { w = window.open("", "", "left=" + $0 + ", top=" + $1 + ", width=" + $2 + ", height=" + $3); w.document.body.style.margin = 0; var canvas = w.document.createElement("canvas"); canvas.style.display = "block"; w.document.body.appendChild(canvas); } w.onbeforeunload = function() { Module.numWindows--; }; w.onmousedown = w.onmouseup = w.onmousemove = (e) => { e.preventDefault; Module.events.push(e); if (Module.newInput) Module.newInput(); }; w.oncontextmenu = (e) => {e.preventDefault()}; specialHTMLTargets["!toucanvas"] = canvas; Module.numWindows++; },  
- 4224287: () => { Module.numWindows = 0; Module.events = []; Module.newInput = null; },  
- 4224358: () => { return Module.numWindows; },  
- 4224388: () => { return Module.events.length; },  
- 4224421: () => { return Date.now() / 1000.0; }
+  4224620: ($0, $1, $2, $3) => { createWindow($0, $1, $2, $3) },  
+ 4224653: () => { Module.numWindows = 0; Module.events = []; Module.newInput = null; },  
+ 4224724: () => { return Module.numWindows; },  
+ 4224754: () => { return Module.events.length; },  
+ 4224787: () => { return Date.now() / 1000.0; }
 };
 function __asyncjs__JSMapSync(bufferID,mode,offset,size) { return Asyncify.handleAsync(async () => { const bufferWrapper = WebGPU.mgrBuffer.objects[bufferID]; const buffer = bufferWrapper.object; const result = await buffer.mapAsync(mode, offset, size); bufferWrapper.mapMode = mode; bufferWrapper.onUnmap = []; return result; }); }
 __asyncjs__JSMapSync.sig = 'iiiii';
+function createWindow(x,y,width,height) { var w; var canvas; if (Module.numWindows == 0) { w = window; canvas = w.document.getElementById("canvas"); canvas.width = width; canvas.height = height; Module.requestFullscreen = () => { canvas.requestFullscreen(); } } else { w = window.open("", "", "left=" + x + ", top=" + y + ", width=" + width + ", height=" + height); w.document.body.style.margin = 0; var canvas = w.document.createElement("canvas"); canvas.style.display = "block"; w.document.body.appendChild(canvas); } w.onbeforeunload = function() { Module.numWindows--; }; const events = ["mousedown", "mousemove", "mouseup", "touchstart", "touchmove", "touchend"]; var inputListener = (e) => { e.preventDefault(); Module.events.push(e); if (Module.newInput) Module.newInput(); }; events.forEach((eventType) => w.addEventListener(eventType, inputListener, { passive: false })); w.oncontextmenu = (e) => { e.preventDefault() }; specialHTMLTargets["!toucanvas"] = canvas; Module.numWindows++; }
 function __asyncjs__JSInitDevice() { return Asyncify.handleAsync(async () => { const adapter = await navigator.gpu.requestAdapter(); const device = await adapter.requestDevice(); const deviceWrapper = {queueId : WebGPU.mgrQueue.create(device["queue"])}; return WebGPU.mgrDevice.create(device, deviceWrapper); }); }
 __asyncjs__JSInitDevice.sig = 'i';
 function __asyncjs__JSWaitForNextEvent() { return Asyncify.handleAsync(async () => { if (Module.events.length == 0) { await new Promise(resolve => { Module.newInput = resolve; }); Module.newInput = null; } }); }
@@ -2140,6 +2141,13 @@ __asyncjs__JSWaitForRAF.sig = 'v';
       return Emval.toHandle(handle[key]);
     };
   __emval_get_property.sig = 'ppp';
+
+  var __emval_incref = (handle) => {
+      if (handle > 9) {
+        emval_handles[handle + 1] += 1;
+      }
+    };
+  __emval_incref.sig = 'vp';
 
   
   var __emval_new_cstring = (v) => Emval.toHandle(getStringOrSymbol(v));
@@ -3941,6 +3949,8 @@ var wasmImports = {
   /** @export */
   _emval_get_property: __emval_get_property,
   /** @export */
+  _emval_incref: __emval_incref,
+  /** @export */
   _emval_new_cstring: __emval_new_cstring,
   /** @export */
   _emval_run_destructors: __emval_run_destructors,
@@ -4107,8 +4117,8 @@ var stackAlloc = createExportWrapper('stackAlloc');
 var _emscripten_stack_get_current = () => (_emscripten_stack_get_current = wasmExports['emscripten_stack_get_current'])();
 var ___cxa_is_pointer_type = createExportWrapper('__cxa_is_pointer_type');
 var dynCall_jiji = Module['dynCall_jiji'] = createExportWrapper('dynCall_jiji');
-var ___start_em_js = Module['___start_em_js'] = 4222584;
-var ___stop_em_js = Module['___stop_em_js'] = 4223511;
+var ___start_em_js = Module['___start_em_js'] = 4222680;
+var ___stop_em_js = Module['___stop_em_js'] = 4224620;
 
 // include: postamble.js
 // === Auto-generated postamble setup entry stuff ===
