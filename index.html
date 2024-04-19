@@ -60,13 +60,13 @@ To enable JSPI in Chrome, navigate to chrome://flags and enable "Experimental We
 </table>
 
 <h2>Why does Toucan use JSPI?</h2>
-<p>Toucan uses JSPI to make certain operations appear synchronous to the developer, in order to mimic their behaviour in the native version of the same application. In this way, the API resembles the windowing and graphics APIs that native developers would be familiar with.
+<p>Toucan uses JSPI to make certain operations appear synchronous to the developer, so that the Web version of a Toucan application mimics the behaviour of the native version of the same app. In this way, the Toucan API resembles the simple, synchronous windowing and graphics APIs that graphics developers would likely be familiar with.
 
 The operations are:
 <ul>
-<li> Event handling (mouse and keyboard events).
-<li> Swapping the frontbuffer and backbuffer (Swapchain.Present()).
-<li> Buffer mapping (MapRead(), MapWrite(), MapReadWrite()).
+<li> Event handling (mouse and keyboard events). <code>System.GetNextEvent()</code> blocks until a new event is received.
+<li> Swapping the frontbuffer and backbuffer. <code>Swapchain.Present()</code> may block until a new frame is available.
+<li> Buffer mapping. <code>Buffer.MapRead()</code>, <code>Buffer.MapWrite()</code>, and <code>Buffer.MapReadWrite()</code> may block until the graphics driver has made the buffer available for access.
 </ul>
 </body>
 </html>
