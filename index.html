@@ -2,6 +2,8 @@
 <body>
 <img src="images/toucan-logo-and-name.svg" width=64 height=64>
 <p>
+<h2>Toucan Samples</h2>
+
 The Toucan Samples are a set of samples demonstrating the use of the
 experimental <a href="https://github.com/google/toucan/">Toucan</a> language.
 </p>
@@ -11,11 +13,11 @@ These samples run in Google Chrome and require WebGPU and WebAssembly JavaScript
 </p>
 
 <p>
-To enable JSPI in Chrome, navigate to chrome://flags and enable "Experimental WebAssembly JavaScript Promise Integration (JSPI)". Alternatively, start chrome with the command-line flag --enable-features=WebAssemblyExperimentalJSPI.
+WebGPU is enabled by default on most platforms in Chrome. To enable it on Linux, start chrome with the command-line flag --enable-unsafe-webgpu.
 </p>
 
 <p>
-WebGPU is enabled by default on most platforms in Chrome. To enable it on linux, start chrome with the command-line flag --enable-unsafe-webgpu.
+To enable JSPI in Chrome, navigate to chrome://flags and enable "Experimental WebAssembly JavaScript Promise Integration (JSPI)". Alternatively, start chrome with the command-line flag --enable-features=WebAssemblyExperimentalJSPI.
 </p>
 
 <table border=1 style="border-collapse: collapse;">
@@ -57,5 +59,14 @@ WebGPU is enabled by default on most platforms in Chrome. To enable it on linux,
 </tr>
 </table>
 
+<h2>Why does Toucan use JSPI?</h2>
+<p>Toucan uses JSPI to make certain operations appear synchronous to the developer, in order to mimic their behaviour in the native version of the same application. In this way, the API resembles the windowing and graphics APIs that native developers would be familiar with.
+
+The operations are:
+<ul>
+<li> Event handling (mouse and keyboard events).
+<li> Swapping the frontbuffer and backbuffer (Swapchain.Present()).
+<li> Buffer mapping (MapRead(), MapWrite(), MapReadWrite()).
+</ul>
 </body>
 </html>

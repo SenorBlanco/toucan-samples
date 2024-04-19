@@ -977,11 +977,12 @@ function dbg(...args) {
 // === Body ===
 
 var ASM_CONSTS = {
-  13957532: ($0, $1, $2, $3) => { createWindow($0, $1, $2, $3) },  
- 13957565: () => { Module.numWindows = 0; Module.events = []; Module.newInput = null; },  
- 13957636: () => { return Module.numWindows; },  
- 13957666: () => { return Module.events.length; },  
- 13957699: () => { return Date.now() / 1000.0; }
+  13957708: ($0, $1, $2, $3) => { createWindow($0, $1, $2, $3) },  
+ 13957741: () => { Module.numWindows = 0; Module.events = []; Module.newInput = null; },  
+ 13957812: () => { return Module.numWindows; },  
+ 13957842: () => { return Module.events.length; },  
+ 13957875: () => { return Date.now() / 1000.0; },  
+ 13957907: () => { return WebGPU.Int_PreferredFormat[navigator.gpu.getPreferredCanvasFormat()]; }
 };
 function __asyncjs__JSMapSync(bufferID,mode,offset,size) { return Asyncify.handleAsync(async () => { const bufferWrapper = WebGPU.mgrBuffer.objects[bufferID]; const buffer = bufferWrapper.object; const result = await buffer.mapAsync(mode, offset, size); bufferWrapper.mapMode = mode; bufferWrapper.onUnmap = []; return result; }); }
 __asyncjs__JSMapSync.sig = 'iiiii';
@@ -3727,11 +3728,11 @@ __asyncjs__JSWaitForRAF.sig = 'v';
   var _wgpuSurfaceRelease = (id) => WebGPU.mgrSurface.release(id);
   _wgpuSurfaceRelease.sig = 'vp';
 
-  var _wgpuSwapChainGetCurrentTextureView = (swapChainId) => {
+  var _wgpuSwapChainGetCurrentTexture = (swapChainId) => {
       var context = WebGPU.mgrSwapChain.get(swapChainId);
-      return WebGPU.mgrTextureView.create(context["getCurrentTexture"]()["createView"]());
+      return WebGPU.mgrTexture.create(context["getCurrentTexture"]());
     };
-  _wgpuSwapChainGetCurrentTextureView.sig = 'pp';
+  _wgpuSwapChainGetCurrentTexture.sig = 'pp';
 
   var _wgpuSwapChainReference = (id) => WebGPU.mgrSwapChain.reference(id);
   _wgpuSwapChainReference.sig = 'vp';
@@ -4081,7 +4082,7 @@ var wasmImports = {
   /** @export */
   wgpuSurfaceRelease: _wgpuSurfaceRelease,
   /** @export */
-  wgpuSwapChainGetCurrentTextureView: _wgpuSwapChainGetCurrentTextureView,
+  wgpuSwapChainGetCurrentTexture: _wgpuSwapChainGetCurrentTexture,
   /** @export */
   wgpuSwapChainReference: _wgpuSwapChainReference,
   /** @export */
@@ -4117,8 +4118,8 @@ var stackAlloc = createExportWrapper('stackAlloc');
 var _emscripten_stack_get_current = () => (_emscripten_stack_get_current = wasmExports['emscripten_stack_get_current'])();
 var ___cxa_is_pointer_type = createExportWrapper('__cxa_is_pointer_type');
 var dynCall_jiji = Module['dynCall_jiji'] = createExportWrapper('dynCall_jiji');
-var ___start_em_js = Module['___start_em_js'] = 13955592;
-var ___stop_em_js = Module['___stop_em_js'] = 13957532;
+var ___start_em_js = Module['___start_em_js'] = 13955768;
+var ___stop_em_js = Module['___stop_em_js'] = 13957708;
 
 // include: postamble.js
 // === Auto-generated postamble setup entry stuff ===

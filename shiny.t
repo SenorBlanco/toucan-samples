@@ -1,9 +1,9 @@
-include "samples/cube.t"
-include "samples/cubic.t"
-include "samples/event-handler.t"
-include "samples/quaternion.t"
-include "samples/transform.t"
-include "samples/teapot.t"
+include "cube.t"
+include "cubic.t"
+include "event-handler.t"
+include "quaternion.t"
+include "transform.t"
+include "teapot.t"
 
 class Vertex {
   Vertex(float<3> p, float<3> n) { position = p; normal = n; }
@@ -13,36 +13,34 @@ class Vertex {
 
 using Format = RGBA8unorm;
 
-class Loader {
-  static void Load(Device* device, ubyte[]^ data, Texture2D<Format>^ texture, uint layer) {
+class CubeLoader {
+  static void Load(Device* device, ubyte[]^ data, TextureCube<Format>^ texture, uint face) {
     auto image = new ImageDecoder<Format>(data);
     auto buffer = new Buffer<Format::MemoryType[]>(device, texture.MinBufferWidth() * image.Height());
     writeonly Format::MemoryType[]^ b = buffer.MapWrite();
     image.Decode(b, texture.MinBufferWidth());
     buffer.Unmap();
     CommandEncoder* encoder = new CommandEncoder(device);
-    texture.CopyFromBuffer(encoder, buffer, image.Width(), image.Height(), 1, uint<3>(0, 0, layer));
+    texture.CopyFromBuffer(encoder, buffer, image.Width(), image.Height(), 1, uint<3>(0, 0, face));
     device.GetQueue().Submit(encoder.Finish());
   }
 }
 
 Device* device = new Device();
 
-auto texture = new sampled Texture2D<RGBA8unorm>(device, 2176, 2176, 6);
-Loader.Load(device, inline("third_party/home-cube/right.jpg"), texture, 0);
-Loader.Load(device, inline("third_party/home-cube/left.jpg"), texture, 1);
-Loader.Load(device, inline("third_party/home-cube/top.jpg"), texture, 2);
-Loader.Load(device, inline("third_party/home-cube/bottom.jpg"), texture, 3);
-Loader.Load(device, inline("third_party/home-cube/front.jpg"), texture, 4);
-Loader.Load(device, inline("third_party/home-cube/back.jpg"), texture, 5);
+auto texture = new sampleable TextureCube<RGBA8unorm>(device, 2176, 2176);
+CubeLoader.Load(device, inline("third_party/home-cube/right.jpg"), texture, 0);
+CubeLoader.Load(device, inline("third_party/home-cube/left.jpg"), texture, 1);
+CubeLoader.Load(device, inline("third_party/home-cube/top.jpg"), texture, 2);
+CubeLoader.Load(device, inline("third_party/home-cube/bottom.jpg"), texture, 3);
+CubeLoader.Load(device, inline("third_party/home-cube/front.jpg"), texture, 4);
+CubeLoader.Load(device, inline("third_party/home-cube/back.jpg"), texture, 5);
 
 Window* window = new Window(device, 0, 0, 1024, 1024);
-SwapChain* swapChain = new SwapChain(window);
+auto swapChain = new SwapChain<PreferredSwapChainFormat>(window);
 
-auto cubeVB = new vertex Buffer<float<3>[]>(device, cubeVerts.length);
-cubeVB.SetData(&cubeVerts);
-auto cubeIB = new index Buffer<uint[]>(device, cubeIndices.length);
-cubeIB.SetData(&cubeIndices);
+auto cubeVB = new vertex Buffer<float<3>[]>(device, &cubeVerts);
+auto cubeIB = new index Buffer<uint[]>(device, &cubeIndices);
 
 class Tessellator {
   Tessellator(float<3>[]^ controlPoints, uint[]^ controlIndices, int level) {
@@ -96,10 +94,8 @@ class Tessellator {
 
 Tessellator* tessTeapot = new Tessellator(&teapotControlPoints, &teapotIndices, 8);
 
-auto teapotVB = new vertex Buffer<Vertex[]>(device, tessTeapot.vertices.length);
-teapotVB.SetData(tessTeapot.vertices);
-auto teapotIB = new index Buffer<uint[]>(device, tessTeapot.indices.length);
-teapotIB.SetData(tessTeapot.indices);
+auto teapotVB = new vertex Buffer<Vertex[]>(device, tessTeapot.vertices);
+auto teapotIB = new index Buffer<uint[]>(device, tessTeapot.indices);
 
 class Uniforms {
   float<4,4>  model, view, projection;
@@ -108,7 +104,7 @@ class Uniforms {
 
 class Bindings {
   Sampler* sampler;
-  sampled TextureCubeView<float>* textureView;
+  SampleableTextureCube<float>* textureView;
   uniform Buffer<Uniforms>* uniforms;
 }
 
@@ -157,7 +153,7 @@ auto cubePipeline = new RenderPipeline<SkyboxPipeline>(device, depthState, Trian
 auto cubeBindings = new Bindings();
 cubeBindings.uniforms = new uniform Buffer<Uniforms>(device);
 cubeBindings.sampler = new Sampler(device, ClampToEdge, ClampToEdge, ClampToEdge, Linear, Linear, Linear);
-cubeBindings.textureView = texture.CreateSampledCubeView();
+cubeBindings.textureView = texture.CreateSampleableView();
 auto cubeBindGroup = new BindGroup(device, cubeBindings);
 
 auto teapotPipeline = new RenderPipeline<ReflectionPipeline>(device, depthState, TriangleList);
@@ -168,17 +164,16 @@ teapotBindings.uniforms = new uniform Buffer<Uniforms>(device);
 auto teapotBindGroup = new BindGroup(device, teapotBindings);
 
 EventHandler handler;
-handler.theta = 0.0;
-handler.phi = 0.0;
+handler.rotation = float<2>(0.0, 0.0);
 handler.distance = 10.0;
 float<4, 4> projection = Transform.projection(0.5, 200.0, -1.0, 1.0, -1.0, 1.0);
 auto teapotQuat = Quaternion(float<3>(1.0, 0.0, 0.0), -3.1415926 / 2.0);
 teapotQuat.normalize();
 auto teapotRotation = teapotQuat.toMatrix();
-auto depthBuffer = new renderable Texture2D<Depth24Plus>(device, 1024, 1024, 1);
+auto depthBuffer = new renderable Texture2D<Depth24Plus>(device, 1024, 1024);
 while (System.IsRunning()) {
-  Quaternion orientation = Quaternion(float<3>(0.0, 1.0, 0.0), handler.theta);
-  orientation = orientation.mul(Quaternion(float<3>(1.0, 0.0, 0.0), handler.phi));
+  Quaternion orientation = Quaternion(float<3>(0.0, 1.0, 0.0), handler.rotation.x);
+  orientation = orientation.mul(Quaternion(float<3>(1.0, 0.0, 0.0), handler.rotation.y));
   orientation.normalize();
   Uniforms uniforms;
   uniforms.projection = projection;
@@ -189,9 +184,9 @@ while (System.IsRunning()) {
   cubeBindings.uniforms.SetData(&uniforms);
   uniforms.model = teapotRotation * Transform.scale(2.0, 2.0, 2.0);
   teapotBindings.uniforms.SetData(&uniforms);
-  renderable Texture2DView* framebuffer = swapChain.GetCurrentTextureView();
+  auto framebuffer = swapChain.GetCurrentTexture();
   CommandEncoder* encoder = new CommandEncoder(device);
-  RenderPassEncoder* passEncoder = encoder.BeginRenderPass(framebuffer, depthBuffer.CreateRenderableView());
+  RenderPassEncoder* passEncoder = encoder.BeginRenderPass(framebuffer, depthBuffer);
 
   passEncoder.SetPipeline(cubePipeline);
   passEncoder.SetBindGroup(0, cubeBindGroup);

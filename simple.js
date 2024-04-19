@@ -2563,8 +2563,8 @@ var stackAlloc = createExportWrapper('stackAlloc');
 var _emscripten_stack_get_current = () => (_emscripten_stack_get_current = wasmExports['emscripten_stack_get_current'])();
 var ___cxa_is_pointer_type = createExportWrapper('__cxa_is_pointer_type');
 var dynCall_jiji = Module['dynCall_jiji'] = createExportWrapper('dynCall_jiji');
-var ___start_em_js = Module['___start_em_js'] = 4206048;
-var ___stop_em_js = Module['___stop_em_js'] = 4207988;
+var ___start_em_js = Module['___start_em_js'] = 4206208;
+var ___stop_em_js = Module['___stop_em_js'] = 4208148;
 
 // include: postamble.js
 // === Auto-generated postamble setup entry stuff ===

@@ -1,7 +1,7 @@
-include "samples/event-handler.t"
-include "samples/quaternion.t"
-include "samples/transform.t"
-include "samples/utils.t"
+include "event-handler.t"
+include "quaternion.t"
+include "transform.t"
+include "utils.t"
 
 using Vector = float<3>;
 
@@ -130,7 +130,7 @@ for (int i = 0; i < bodies.length; ++i) {
 
 Device* device = new Device();
 Window* window = new Window(device, 0, 0, 960, 960);
-SwapChain* swapChain = new SwapChain(window);
+auto swapChain = new SwapChain<PreferredSwapChainFormat>(window);
 auto physicsSystem = new ParticleSystem(bodies, springs);
 
 auto bodyVerts = new Vector[bodies.length * 3];
@@ -146,8 +146,7 @@ auto bodyBG = new BindGroup(device, bodyUBO);
 auto springUBO = new uniform Buffer<DrawUniforms>(device);
 auto springBG = new BindGroup(device, springUBO);
 EventHandler handler;
-handler.theta = 0.0;
-handler.phi = 0.0;
+handler.rotation = float<2>(0.0, 0.0);
 handler.distance = 0.5 * (float) width;
 auto drawUniforms = new DrawUniforms();
 float<4,4> projection = Transform.projection(1.0, 100.0, -1.0, 1.0, -1.0, 1.0);
@@ -156,8 +155,8 @@ float frequency = 480.0;
 int maxStepsPerFrame = 32;
 int stepsDone = 0;
 while(System.IsRunning()) {
-  Quaternion orientation = Quaternion(float<3>(0.0, 1.0, 0.0), handler.theta);
-  orientation = orientation.mul(Quaternion(float<3>(1.0, 0.0, 0.0), handler.phi));
+  Quaternion orientation = Quaternion(float<3>(0.0, 1.0, 0.0), handler.rotation.x);
+  orientation = orientation.mul(Quaternion(float<3>(1.0, 0.0, 0.0), handler.rotation.y));
   orientation.normalize();
   drawUniforms.matrix = projection;
   drawUniforms.matrix *= Transform.translate(0.0, 0.0, -handler.distance);
@@ -186,7 +185,7 @@ while(System.IsRunning()) {
     physicsSystem.eulerStep(8.0 / frequency);
     stepsDone++;
   }
-  renderable Texture2DView* framebuffer = swapChain.GetCurrentTextureView();
+  auto framebuffer = swapChain.GetCurrentTexture();
   CommandEncoder* encoder = new CommandEncoder(device);
   RenderPassEncoder* passEncoder = encoder.BeginRenderPass(framebuffer);
 

@@ -977,11 +977,12 @@ function dbg(...args) {
 // === Body ===
 
 var ASM_CONSTS = {
-  4224772: ($0, $1, $2, $3) => { createWindow($0, $1, $2, $3) },  
- 4224805: () => { Module.numWindows = 0; Module.events = []; Module.newInput = null; },  
- 4224876: () => { return Module.numWindows; },  
- 4224906: () => { return Module.events.length; },  
- 4224939: () => { return Date.now() / 1000.0; }
+  4224916: ($0, $1, $2, $3) => { createWindow($0, $1, $2, $3) },  
+ 4224949: () => { Module.numWindows = 0; Module.events = []; Module.newInput = null; },  
+ 4225020: () => { return Module.numWindows; },  
+ 4225050: () => { return Module.events.length; },  
+ 4225083: () => { return Date.now() / 1000.0; },  
+ 4225115: () => { return WebGPU.Int_PreferredFormat[navigator.gpu.getPreferredCanvasFormat()]; }
 };
 function __asyncjs__JSMapSync(bufferID,mode,offset,size) { return Asyncify.handleAsync(async () => { const bufferWrapper = WebGPU.mgrBuffer.objects[bufferID]; const buffer = bufferWrapper.object; const result = await buffer.mapAsync(mode, offset, size); bufferWrapper.mapMode = mode; bufferWrapper.onUnmap = []; return result; }); }
 function createWindow(x,y,width,height) { var w; var canvas; if (Module.numWindows == 0) { w = window; canvas = w.document.getElementById("canvas"); canvas.width = width; canvas.height = height; Module.requestFullscreen = () => { canvas.requestFullscreen(); } } else { w = window.open("", "", "left=" + x + ", top=" + y + ", width=" + width + ", height=" + height); w.document.body.style.margin = 0; var canvas = w.document.createElement("canvas"); canvas.style.display = "block"; w.document.body.appendChild(canvas); } w.onbeforeunload = function() { Module.numWindows--; }; const events = ["mousedown", "mousemove", "mouseup", "touchstart", "touchmove", "touchend"]; var inputListener = (e) => { e.preventDefault(); Module.events.push(e); if (Module.newInput) Module.newInput(); }; events.forEach((eventType) => w.addEventListener(eventType, inputListener, { passive: false })); w.oncontextmenu = (e) => { e.preventDefault() }; specialHTMLTargets["!toucanvas"] = canvas; Module.numWindows++; }
@@ -3592,17 +3593,51 @@ __asyncjs__JSWaitForRAF.sig = 'v';
   var _wgpuSurfaceRelease = (id) => WebGPU.mgrSurface.release(id);
   _wgpuSurfaceRelease.sig = 'vp';
 
-  var _wgpuSwapChainGetCurrentTextureView = (swapChainId) => {
+  var _wgpuSwapChainGetCurrentTexture = (swapChainId) => {
       var context = WebGPU.mgrSwapChain.get(swapChainId);
-      return WebGPU.mgrTextureView.create(context["getCurrentTexture"]()["createView"]());
+      return WebGPU.mgrTexture.create(context["getCurrentTexture"]());
     };
-  _wgpuSwapChainGetCurrentTextureView.sig = 'pp';
+  _wgpuSwapChainGetCurrentTexture.sig = 'pp';
 
   var _wgpuSwapChainReference = (id) => WebGPU.mgrSwapChain.reference(id);
   _wgpuSwapChainReference.sig = 'vp';
 
   var _wgpuSwapChainRelease = (id) => WebGPU.mgrSwapChain.release(id);
   _wgpuSwapChainRelease.sig = 'vp';
+
+  
+  var _wgpuTextureCreateView = (textureId, descriptor) => {
+      var desc;
+      if (descriptor) {
+        assert(descriptor);assert(HEAPU32[((descriptor)>>2)] === 0);
+        var mipLevelCount = HEAPU32[(((descriptor)+(20))>>2)];
+        var arrayLayerCount = HEAPU32[(((descriptor)+(28))>>2)];
+        desc = {
+          "format": WebGPU.TextureFormat[
+            HEAPU32[(((descriptor)+(8))>>2)]],
+          "dimension": WebGPU.TextureViewDimension[
+            HEAPU32[(((descriptor)+(12))>>2)]],
+          "baseMipLevel": HEAPU32[(((descriptor)+(16))>>2)],
+          "mipLevelCount": mipLevelCount === 4294967295 ? undefined : mipLevelCount,
+          "baseArrayLayer": HEAPU32[(((descriptor)+(24))>>2)],
+          "arrayLayerCount": arrayLayerCount === 4294967295 ? undefined : arrayLayerCount,
+          "aspect": WebGPU.TextureAspect[
+            HEAPU32[(((descriptor)+(32))>>2)]],
+        };
+        var labelPtr = HEAPU32[(((descriptor)+(4))>>2)];
+        if (labelPtr) desc["label"] = UTF8ToString(labelPtr);
+      }
+  
+      var texture = WebGPU.mgrTexture.get(textureId);
+      return WebGPU.mgrTextureView.create(texture["createView"](desc));
+    };
+  _wgpuTextureCreateView.sig = 'ppp';
+
+  var _wgpuTextureReference = (id) => WebGPU.mgrTexture.reference(id);
+  _wgpuTextureReference.sig = 'vp';
+
+  var _wgpuTextureRelease = (id) => WebGPU.mgrTexture.release(id);
+  _wgpuTextureRelease.sig = 'vp';
 
   var _wgpuTextureViewReference = (id) => WebGPU.mgrTextureView.reference(id);
   _wgpuTextureViewReference.sig = 'vp';
@@ -3912,11 +3947,17 @@ var wasmImports = {
   /** @export */
   wgpuSurfaceRelease: _wgpuSurfaceRelease,
   /** @export */
-  wgpuSwapChainGetCurrentTextureView: _wgpuSwapChainGetCurrentTextureView,
+  wgpuSwapChainGetCurrentTexture: _wgpuSwapChainGetCurrentTexture,
   /** @export */
   wgpuSwapChainReference: _wgpuSwapChainReference,
   /** @export */
   wgpuSwapChainRelease: _wgpuSwapChainRelease,
+  /** @export */
+  wgpuTextureCreateView: _wgpuTextureCreateView,
+  /** @export */
+  wgpuTextureReference: _wgpuTextureReference,
+  /** @export */
+  wgpuTextureRelease: _wgpuTextureRelease,
   /** @export */
   wgpuTextureViewReference: _wgpuTextureViewReference,
   /** @export */
@@ -3942,8 +3983,8 @@ var stackAlloc = createExportWrapper('stackAlloc');
 var _emscripten_stack_get_current = () => (_emscripten_stack_get_current = wasmExports['emscripten_stack_get_current'])();
 var ___cxa_is_pointer_type = createExportWrapper('__cxa_is_pointer_type');
 var dynCall_jiji = Module['dynCall_jiji'] = createExportWrapper('dynCall_jiji');
-var ___start_em_js = Module['___start_em_js'] = 4222832;
-var ___stop_em_js = Module['___stop_em_js'] = 4224772;
+var ___start_em_js = Module['___start_em_js'] = 4222976;
+var ___stop_em_js = Module['___stop_em_js'] = 4224916;
 
 // include: postamble.js
 // === Auto-generated postamble setup entry stuff ===
