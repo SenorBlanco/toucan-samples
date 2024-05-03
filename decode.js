@@ -977,12 +977,12 @@ function dbg(...args) {
 // === Body ===
 
 var ASM_CONSTS = {
-  4224780: ($0, $1, $2, $3) => { createWindow($0, $1, $2, $3) },  
- 4224813: () => { Module.numWindows = 0; Module.events = []; Module.newInput = null; },  
- 4224884: () => { return Module.numWindows; },  
- 4224914: () => { return Module.events.length; },  
- 4224947: () => { return Date.now() / 1000.0; },  
- 4224979: () => { return WebGPU.Int_PreferredFormat[navigator.gpu.getPreferredCanvasFormat()]; }
+  4224724: ($0, $1, $2, $3) => { createWindow($0, $1, $2, $3) },  
+ 4224757: () => { Module.numWindows = 0; Module.events = []; Module.newInput = null; },  
+ 4224828: () => { return Module.numWindows; },  
+ 4224858: () => { return Module.events.length; },  
+ 4224891: () => { return Date.now() / 1000.0; },  
+ 4224923: () => { return WebGPU.Int_PreferredFormat[navigator.gpu.getPreferredCanvasFormat()]; }
 };
 function __asyncjs__JSMapSync(bufferID,mode,offset,size) { return Asyncify.handleAsync(async () => { const bufferWrapper = WebGPU.mgrBuffer.objects[bufferID]; const buffer = bufferWrapper.object; const result = await buffer.mapAsync(mode, offset, size); bufferWrapper.mapMode = mode; bufferWrapper.onUnmap = []; return result; }); }
 __asyncjs__JSMapSync.sig = 'iiiii';
@@ -4118,8 +4118,8 @@ var stackAlloc = createExportWrapper('stackAlloc');
 var _emscripten_stack_get_current = () => (_emscripten_stack_get_current = wasmExports['emscripten_stack_get_current'])();
 var ___cxa_is_pointer_type = createExportWrapper('__cxa_is_pointer_type');
 var dynCall_jiji = Module['dynCall_jiji'] = createExportWrapper('dynCall_jiji');
-var ___start_em_js = Module['___start_em_js'] = 4222840;
-var ___stop_em_js = Module['___stop_em_js'] = 4224780;
+var ___start_em_js = Module['___start_em_js'] = 4222784;
+var ___stop_em_js = Module['___stop_em_js'] = 4224724;
 
 // include: postamble.js
 // === Auto-generated postamble setup entry stuff ===
