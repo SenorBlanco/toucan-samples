@@ -977,12 +977,12 @@ function dbg(...args) {
 // === Body ===
 
 var ASM_CONSTS = {
-  4225052: ($0, $1, $2, $3) => { createWindow($0, $1, $2, $3) },  
- 4225085: () => { Module.numWindows = 0; Module.events = []; Module.newInput = null; },  
- 4225156: () => { return Module.numWindows; },  
- 4225186: () => { return Module.events.length; },  
- 4225219: () => { return Date.now() / 1000.0; },  
- 4225251: () => { return WebGPU.Int_PreferredFormat[navigator.gpu.getPreferredCanvasFormat()]; }
+  4225172: ($0, $1, $2, $3) => { createWindow($0, $1, $2, $3) },  
+ 4225205: () => { Module.numWindows = 0; Module.events = []; Module.newInput = null; },  
+ 4225276: () => { return Module.numWindows; },  
+ 4225306: () => { return Module.events.length; },  
+ 4225339: () => { return Date.now() / 1000.0; },  
+ 4225371: () => { return WebGPU.Int_PreferredFormat[navigator.gpu.getPreferredCanvasFormat()]; }
 };
 function __asyncjs__JSMapSync(bufferID,mode,offset,size) { return Asyncify.handleAsync(async () => { const bufferWrapper = WebGPU.mgrBuffer.objects[bufferID]; const buffer = bufferWrapper.object; const result = await buffer.mapAsync(mode, offset, size); bufferWrapper.mapMode = mode; bufferWrapper.onUnmap = []; return result; }); }
 function createWindow(x,y,width,height) { var w; var canvas; if (Module.numWindows == 0) { w = window; canvas = w.document.getElementById("canvas"); canvas.width = width; canvas.height = height; Module.requestFullscreen = () => { canvas.requestFullscreen(); } } else { w = window.open("", "", "left=" + x + ", top=" + y + ", width=" + width + ", height=" + height); w.document.body.style.margin = 0; var canvas = w.document.createElement("canvas"); canvas.style.display = "block"; w.document.body.appendChild(canvas); } w.onbeforeunload = function() { Module.numWindows--; }; const events = ["mousedown", "mousemove", "mouseup", "touchstart", "touchmove", "touchend"]; var inputListener = (e) => { e.preventDefault(); Module.events.push(e); if (Module.newInput) Module.newInput(); }; events.forEach((eventType) => w.addEventListener(eventType, inputListener, { passive: false })); w.oncontextmenu = (e) => { e.preventDefault() }; specialHTMLTargets["!toucanvas"] = canvas; Module.numWindows++; }
@@ -3548,6 +3548,20 @@ __asyncjs__JSWaitForRAF.sig = 'v';
     };
   _wgpuRenderPassEncoderSetBindGroup.sig = 'vpippp';
 
+  
+  function _wgpuRenderPassEncoderSetIndexBuffer(passId,bufferId,format,offset_low, offset_high,size_low, size_high) {
+    var offset = convertI32PairToI53Checked(offset_low, offset_high);;
+    var size = convertI32PairToI53Checked(size_low, size_high);;
+  
+    
+      var pass = WebGPU.mgrRenderPassEncoder.get(passId);
+      var buffer = WebGPU.mgrBuffer.get(bufferId);
+      if (size == -1) size = undefined;
+      pass["setIndexBuffer"](buffer, WebGPU.IndexFormat[format], offset, size);
+    ;
+  }
+  _wgpuRenderPassEncoderSetIndexBuffer.sig = 'vppiiiii';
+
   var _wgpuRenderPassEncoderSetPipeline = (passId, pipelineId) => {
       var pass = WebGPU.mgrRenderPassEncoder.get(passId);
       var pipeline = WebGPU.mgrRenderPipeline.get(pipelineId);
@@ -3927,6 +3941,8 @@ var wasmImports = {
   /** @export */
   wgpuRenderPassEncoderSetBindGroup: _wgpuRenderPassEncoderSetBindGroup,
   /** @export */
+  wgpuRenderPassEncoderSetIndexBuffer: _wgpuRenderPassEncoderSetIndexBuffer,
+  /** @export */
   wgpuRenderPassEncoderSetPipeline: _wgpuRenderPassEncoderSetPipeline,
   /** @export */
   wgpuRenderPassEncoderSetVertexBuffer: _wgpuRenderPassEncoderSetVertexBuffer,
@@ -3983,8 +3999,8 @@ var stackAlloc = createExportWrapper('stackAlloc');
 var _emscripten_stack_get_current = () => (_emscripten_stack_get_current = wasmExports['emscripten_stack_get_current'])();
 var ___cxa_is_pointer_type = createExportWrapper('__cxa_is_pointer_type');
 var dynCall_jiji = Module['dynCall_jiji'] = createExportWrapper('dynCall_jiji');
-var ___start_em_js = Module['___start_em_js'] = 4223112;
-var ___stop_em_js = Module['___stop_em_js'] = 4225052;
+var ___start_em_js = Module['___start_em_js'] = 4223232;
+var ___stop_em_js = Module['___stop_em_js'] = 4225172;
 
 // include: postamble.js
 // === Auto-generated postamble setup entry stuff ===

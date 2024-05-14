@@ -977,12 +977,12 @@ function dbg(...args) {
 // === Body ===
 
 var ASM_CONSTS = {
-  4208612: ($0, $1, $2, $3) => { createWindow($0, $1, $2, $3) },  
- 4208645: () => { Module.numWindows = 0; Module.events = []; Module.newInput = null; },  
- 4208716: () => { return Module.numWindows; },  
- 4208746: () => { return Module.events.length; },  
- 4208779: () => { return Date.now() / 1000.0; },  
- 4208811: () => { return WebGPU.Int_PreferredFormat[navigator.gpu.getPreferredCanvasFormat()]; }
+  4208756: ($0, $1, $2, $3) => { createWindow($0, $1, $2, $3) },  
+ 4208789: () => { Module.numWindows = 0; Module.events = []; Module.newInput = null; },  
+ 4208860: () => { return Module.numWindows; },  
+ 4208890: () => { return Module.events.length; },  
+ 4208923: () => { return Date.now() / 1000.0; },  
+ 4208955: () => { return WebGPU.Int_PreferredFormat[navigator.gpu.getPreferredCanvasFormat()]; }
 };
 function __asyncjs__JSMapSync(bufferID,mode,offset,size) { return Asyncify.handleAsync(async () => { const bufferWrapper = WebGPU.mgrBuffer.objects[bufferID]; const buffer = bufferWrapper.object; const result = await buffer.mapAsync(mode, offset, size); bufferWrapper.mapMode = mode; bufferWrapper.onUnmap = []; return result; }); }
 function createWindow(x,y,width,height) { var w; var canvas; if (Module.numWindows == 0) { w = window; canvas = w.document.getElementById("canvas"); canvas.width = width; canvas.height = height; Module.requestFullscreen = () => { canvas.requestFullscreen(); } } else { w = window.open("", "", "left=" + x + ", top=" + y + ", width=" + width + ", height=" + height); w.document.body.style.margin = 0; var canvas = w.document.createElement("canvas"); canvas.style.display = "block"; w.document.body.appendChild(canvas); } w.onbeforeunload = function() { Module.numWindows--; }; const events = ["mousedown", "mousemove", "mouseup", "touchstart", "touchmove", "touchend"]; var inputListener = (e) => { e.preventDefault(); Module.events.push(e); if (Module.newInput) Module.newInput(); }; events.forEach((eventType) => w.addEventListener(eventType, inputListener, { passive: false })); w.oncontextmenu = (e) => { e.preventDefault() }; specialHTMLTargets["!toucanvas"] = canvas; Module.numWindows++; }
@@ -2563,6 +2563,18 @@ __asyncjs__JSWaitForRAF.sig = 'v';
   var _wgpuBindGroupLayoutRelease = (id) => WebGPU.mgrBindGroupLayout.release(id);
   _wgpuBindGroupLayoutRelease.sig = 'vp';
 
+  var _wgpuBindGroupReference = (id) => WebGPU.mgrBindGroup.reference(id);
+  _wgpuBindGroupReference.sig = 'vp';
+
+  var _wgpuBindGroupRelease = (id) => WebGPU.mgrBindGroup.release(id);
+  _wgpuBindGroupRelease.sig = 'vp';
+
+  var _wgpuBufferReference = (id) => WebGPU.mgrBuffer.reference(id);
+  _wgpuBufferReference.sig = 'vp';
+
+  var _wgpuBufferRelease = (id) => WebGPU.mgrBuffer.release(id);
+  _wgpuBufferRelease.sig = 'vp';
+
   var _wgpuCommandBufferReference = (id) => WebGPU.mgrCommandBuffer.reference(id);
   _wgpuCommandBufferReference.sig = 'vp';
 
@@ -2925,6 +2937,49 @@ __asyncjs__JSWaitForRAF.sig = 'v';
   var _wgpuRenderPassEncoderRelease = (id) => WebGPU.mgrRenderPassEncoder.release(id);
   _wgpuRenderPassEncoderRelease.sig = 'vp';
 
+  var _wgpuRenderPassEncoderSetBindGroup = (passId, groupIndex, groupId, dynamicOffsetCount, dynamicOffsetsPtr) => {
+      var pass = WebGPU.mgrRenderPassEncoder.get(passId);
+      var group = WebGPU.mgrBindGroup.get(groupId);
+      if (dynamicOffsetCount == 0) {
+        pass["setBindGroup"](groupIndex, group);
+      } else {
+        var offsets = [];
+        for (var i = 0; i < dynamicOffsetCount; i++, dynamicOffsetsPtr += 4) {
+          offsets.push(HEAPU32[((dynamicOffsetsPtr)>>2)]);
+        }
+        pass["setBindGroup"](groupIndex, group, offsets);
+      }
+    };
+  _wgpuRenderPassEncoderSetBindGroup.sig = 'vpippp';
+
+  
+  function _wgpuRenderPassEncoderSetIndexBuffer(passId,bufferId,format,offset_low, offset_high,size_low, size_high) {
+    var offset = convertI32PairToI53Checked(offset_low, offset_high);;
+    var size = convertI32PairToI53Checked(size_low, size_high);;
+  
+    
+      var pass = WebGPU.mgrRenderPassEncoder.get(passId);
+      var buffer = WebGPU.mgrBuffer.get(bufferId);
+      if (size == -1) size = undefined;
+      pass["setIndexBuffer"](buffer, WebGPU.IndexFormat[format], offset, size);
+    ;
+  }
+  _wgpuRenderPassEncoderSetIndexBuffer.sig = 'vppiiiii';
+
+  
+  function _wgpuRenderPassEncoderSetVertexBuffer(passId,slot,bufferId,offset_low, offset_high,size_low, size_high) {
+    var offset = convertI32PairToI53Checked(offset_low, offset_high);;
+    var size = convertI32PairToI53Checked(size_low, size_high);;
+  
+    
+      var pass = WebGPU.mgrRenderPassEncoder.get(passId);
+      var buffer = WebGPU.mgrBuffer.get(bufferId);
+      if (size == -1) size = undefined;
+      pass["setVertexBuffer"](slot, buffer, offset, size);
+    ;
+  }
+  _wgpuRenderPassEncoderSetVertexBuffer.sig = 'vpipiiii';
+
   var _wgpuSurfaceReference = (id) => WebGPU.mgrSurface.reference(id);
   _wgpuSurfaceReference.sig = 'vp';
 
@@ -3173,6 +3228,14 @@ var wasmImports = {
   /** @export */
   wgpuBindGroupLayoutRelease: _wgpuBindGroupLayoutRelease,
   /** @export */
+  wgpuBindGroupReference: _wgpuBindGroupReference,
+  /** @export */
+  wgpuBindGroupRelease: _wgpuBindGroupRelease,
+  /** @export */
+  wgpuBufferReference: _wgpuBufferReference,
+  /** @export */
+  wgpuBufferRelease: _wgpuBufferRelease,
+  /** @export */
   wgpuCommandBufferReference: _wgpuCommandBufferReference,
   /** @export */
   wgpuCommandBufferRelease: _wgpuCommandBufferRelease,
@@ -3212,6 +3275,12 @@ var wasmImports = {
   wgpuRenderPassEncoderReference: _wgpuRenderPassEncoderReference,
   /** @export */
   wgpuRenderPassEncoderRelease: _wgpuRenderPassEncoderRelease,
+  /** @export */
+  wgpuRenderPassEncoderSetBindGroup: _wgpuRenderPassEncoderSetBindGroup,
+  /** @export */
+  wgpuRenderPassEncoderSetIndexBuffer: _wgpuRenderPassEncoderSetIndexBuffer,
+  /** @export */
+  wgpuRenderPassEncoderSetVertexBuffer: _wgpuRenderPassEncoderSetVertexBuffer,
   /** @export */
   wgpuSurfaceReference: _wgpuSurfaceReference,
   /** @export */
@@ -3253,8 +3322,8 @@ var stackAlloc = createExportWrapper('stackAlloc');
 var _emscripten_stack_get_current = () => (_emscripten_stack_get_current = wasmExports['emscripten_stack_get_current'])();
 var ___cxa_is_pointer_type = createExportWrapper('__cxa_is_pointer_type');
 var dynCall_jiji = Module['dynCall_jiji'] = createExportWrapper('dynCall_jiji');
-var ___start_em_js = Module['___start_em_js'] = 4206672;
-var ___stop_em_js = Module['___stop_em_js'] = 4208612;
+var ___start_em_js = Module['___start_em_js'] = 4206816;
+var ___stop_em_js = Module['___stop_em_js'] = 4208756;
 
 // include: postamble.js
 // === Auto-generated postamble setup entry stuff ===
