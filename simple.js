@@ -2546,8 +2546,8 @@ var wasmImports = {
 Asyncify.instrumentWasmImports(wasmImports);
 var wasmExports = createWasm();
 var ___wasm_call_ctors = createExportWrapper('__wasm_call_ctors');
-var _malloc = createExportWrapper('malloc');
 var _free = createExportWrapper('free');
+var _malloc = createExportWrapper('malloc');
 var _main = Module['_main'] = createExportWrapper('__main_argc_argv');
 var _fflush = createExportWrapper('fflush');
 var ___getTypeName = createExportWrapper('__getTypeName');
@@ -2563,8 +2563,8 @@ var stackAlloc = createExportWrapper('stackAlloc');
 var _emscripten_stack_get_current = () => (_emscripten_stack_get_current = wasmExports['emscripten_stack_get_current'])();
 var ___cxa_is_pointer_type = createExportWrapper('__cxa_is_pointer_type');
 var dynCall_jiji = Module['dynCall_jiji'] = createExportWrapper('dynCall_jiji');
-var ___start_em_js = Module['___start_em_js'] = 4206496;
-var ___stop_em_js = Module['___stop_em_js'] = 4208436;
+var ___start_em_js = Module['___start_em_js'] = 4206536;
+var ___stop_em_js = Module['___stop_em_js'] = 4208476;
 
 // include: postamble.js
 // === Auto-generated postamble setup entry stuff ===
