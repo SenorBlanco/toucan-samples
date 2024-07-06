@@ -977,15 +977,20 @@ function dbg(...args) {
 // === Body ===
 
 var ASM_CONSTS = {
-  4225172: ($0, $1, $2, $3) => { createWindow($0, $1, $2, $3) },  
- 4225205: () => { Module.numWindows = 0; Module.events = []; Module.newInput = null; },  
- 4225276: () => { return Module.numWindows; },  
- 4225306: () => { return Module.events.length; },  
- 4225339: () => { return Date.now() / 1000.0; },  
- 4225371: () => { return WebGPU.Int_PreferredFormat[navigator.gpu.getPreferredCanvasFormat()]; }
+  4225129: ($0, $1, $2, $3) => { createWindow($0, $1, $2, $3) },  
+ 4225162: () => { Module.numWindows = 0; Module.events = []; Module.newInput = null; },  
+ 4225233: () => { return Module.numWindows; },  
+ 4225263: () => { return Module.events.length; },  
+ 4225296: () => { window.id },  
+ 4225308: () => { return window.innerWidth },  
+ 4225335: () => { return window.innerHeight },  
+ 4225363: () => { return window.innerWidth },  
+ 4225390: () => { return window.innerHeight },  
+ 4225418: () => { return Date.now() / 1000.0; },  
+ 4225450: () => { return WebGPU.Int_PreferredFormat[navigator.gpu.getPreferredCanvasFormat()]; }
 };
 function __asyncjs__JSMapSync(bufferID,mode,offset,size) { return Asyncify.handleAsync(async () => { const bufferWrapper = WebGPU.mgrBuffer.objects[bufferID]; const buffer = bufferWrapper.object; const result = await buffer.mapAsync(mode, offset, size); bufferWrapper.mapMode = mode; bufferWrapper.onUnmap = []; return result; }); }
-function createWindow(x,y,width,height) { var w; var canvas; if (Module.numWindows == 0) { w = window; canvas = w.document.getElementById("canvas"); canvas.width = width; canvas.height = height; Module.requestFullscreen = () => { canvas.requestFullscreen(); } } else { w = window.open("", "", "left=" + x + ", top=" + y + ", width=" + width + ", height=" + height); w.document.body.style.margin = 0; var canvas = w.document.createElement("canvas"); canvas.style.display = "block"; w.document.body.appendChild(canvas); } w.onbeforeunload = function() { Module.numWindows--; }; const events = ["mousedown", "mousemove", "mouseup", "touchstart", "touchmove", "touchend"]; var inputListener = (e) => { e.preventDefault(); Module.events.push(e); if (Module.newInput) Module.newInput(); }; events.forEach((eventType) => w.addEventListener(eventType, inputListener, { passive: false })); w.oncontextmenu = (e) => { e.preventDefault() }; specialHTMLTargets["!toucanvas"] = canvas; Module.numWindows++; }
+function createWindow(x,y,width,height) { var w; var canvas; if (Module.numWindows == 0) { w = window; canvas = w.document.getElementById("canvas"); canvas.width = width; canvas.height = height; Module.requestFullscreen = () => { canvas.requestFullscreen(); } } else { w = window.open("", "", "left=" + x + ", top=" + y + ", width=" + width + ", height=" + height); w.document.body.style.margin = 0; var canvas = w.document.createElement("canvas"); canvas.style.display = "block"; w.document.body.appendChild(canvas); } const events = ["mousedown", "mousemove", "mouseup", "touchstart", "touchmove", "touchend", "resize"]; var inputListener = (e) => { e.preventDefault(); Module.events.push(e); if (Module.newInput) Module.newInput(); }; events.forEach((eventType) => canvas.addEventListener(eventType, inputListener, { passive: false })); w.oncontextmenu = (e) => { e.preventDefault() }; specialHTMLTargets["!toucanvas"] = canvas; return w.id = Module.numWindows++; }
 function __asyncjs__JSInitDevice() { return Asyncify.handleAsync(async () => { const adapter = await navigator.gpu.requestAdapter(); const device = await adapter.requestDevice(); const deviceWrapper = {queueId : WebGPU.mgrQueue.create(device["queue"])}; return WebGPU.mgrDevice.create(device, deviceWrapper); }); }
 __asyncjs__JSInitDevice.sig = 'i';
 function __asyncjs__JSWaitForNextEvent() { return Asyncify.handleAsync(async () => { if (Module.events.length == 0) { await new Promise(resolve => { Module.newInput = resolve; }); Module.newInput = null; } }); }
@@ -3999,8 +4004,8 @@ var stackAlloc = createExportWrapper('stackAlloc');
 var _emscripten_stack_get_current = () => (_emscripten_stack_get_current = wasmExports['emscripten_stack_get_current'])();
 var ___cxa_is_pointer_type = createExportWrapper('__cxa_is_pointer_type');
 var dynCall_jiji = Module['dynCall_jiji'] = createExportWrapper('dynCall_jiji');
-var ___start_em_js = Module['___start_em_js'] = 4223232;
-var ___stop_em_js = Module['___stop_em_js'] = 4225172;
+var ___start_em_js = Module['___start_em_js'] = 4223216;
+var ___stop_em_js = Module['___stop_em_js'] = 4225129;
 
 // include: postamble.js
 // === Auto-generated postamble setup entry stuff ===

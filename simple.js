@@ -977,7 +977,7 @@ function dbg(...args) {
 // === Body ===
 
 function __asyncjs__JSMapSync(bufferID,mode,offset,size) { return Asyncify.handleAsync(async () => { const bufferWrapper = WebGPU.mgrBuffer.objects[bufferID]; const buffer = bufferWrapper.object; const result = await buffer.mapAsync(mode, offset, size); bufferWrapper.mapMode = mode; bufferWrapper.onUnmap = []; return result; }); }
-function createWindow(x,y,width,height) { var w; var canvas; if (Module.numWindows == 0) { w = window; canvas = w.document.getElementById("canvas"); canvas.width = width; canvas.height = height; Module.requestFullscreen = () => { canvas.requestFullscreen(); } } else { w = window.open("", "", "left=" + x + ", top=" + y + ", width=" + width + ", height=" + height); w.document.body.style.margin = 0; var canvas = w.document.createElement("canvas"); canvas.style.display = "block"; w.document.body.appendChild(canvas); } w.onbeforeunload = function() { Module.numWindows--; }; const events = ["mousedown", "mousemove", "mouseup", "touchstart", "touchmove", "touchend"]; var inputListener = (e) => { e.preventDefault(); Module.events.push(e); if (Module.newInput) Module.newInput(); }; events.forEach((eventType) => w.addEventListener(eventType, inputListener, { passive: false })); w.oncontextmenu = (e) => { e.preventDefault() }; specialHTMLTargets["!toucanvas"] = canvas; Module.numWindows++; }
+function createWindow(x,y,width,height) { var w; var canvas; if (Module.numWindows == 0) { w = window; canvas = w.document.getElementById("canvas"); canvas.width = width; canvas.height = height; Module.requestFullscreen = () => { canvas.requestFullscreen(); } } else { w = window.open("", "", "left=" + x + ", top=" + y + ", width=" + width + ", height=" + height); w.document.body.style.margin = 0; var canvas = w.document.createElement("canvas"); canvas.style.display = "block"; w.document.body.appendChild(canvas); } const events = ["mousedown", "mousemove", "mouseup", "touchstart", "touchmove", "touchend", "resize"]; var inputListener = (e) => { e.preventDefault(); Module.events.push(e); if (Module.newInput) Module.newInput(); }; events.forEach((eventType) => canvas.addEventListener(eventType, inputListener, { passive: false })); w.oncontextmenu = (e) => { e.preventDefault() }; specialHTMLTargets["!toucanvas"] = canvas; return w.id = Module.numWindows++; }
 function __asyncjs__JSInitDevice() { return Asyncify.handleAsync(async () => { const adapter = await navigator.gpu.requestAdapter(); const device = await adapter.requestDevice(); const deviceWrapper = {queueId : WebGPU.mgrQueue.create(device["queue"])}; return WebGPU.mgrDevice.create(device, deviceWrapper); }); }
 function __asyncjs__JSWaitForNextEvent() { return Asyncify.handleAsync(async () => { if (Module.events.length == 0) { await new Promise(resolve => { Module.newInput = resolve; }); Module.newInput = null; } }); }
 function __asyncjs__JSWaitForRAF() { return Asyncify.handleAsync(async () => { await new Promise(resolve => { requestAnimationFrame(resolve); }); }); }
@@ -2563,8 +2563,8 @@ var stackAlloc = createExportWrapper('stackAlloc');
 var _emscripten_stack_get_current = () => (_emscripten_stack_get_current = wasmExports['emscripten_stack_get_current'])();
 var ___cxa_is_pointer_type = createExportWrapper('__cxa_is_pointer_type');
 var dynCall_jiji = Module['dynCall_jiji'] = createExportWrapper('dynCall_jiji');
-var ___start_em_js = Module['___start_em_js'] = 4206536;
-var ___stop_em_js = Module['___stop_em_js'] = 4208476;
+var ___start_em_js = Module['___start_em_js'] = 4206520;
+var ___stop_em_js = Module['___stop_em_js'] = 4208433;
 
 // include: postamble.js
 // === Auto-generated postamble setup entry stuff ===
