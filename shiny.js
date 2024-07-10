@@ -977,17 +977,17 @@ function dbg(...args) {
 // === Body ===
 
 var ASM_CONSTS = {
-  13957913: ($0, $1, $2, $3) => { createWindow($0, $1, $2, $3) },  
- 13957946: () => { Module.numWindows = 0; Module.events = []; Module.newInput = null; },  
- 13958017: () => { return Module.numWindows; },  
- 13958047: () => { return Module.events.length; },  
- 13958080: () => { window.id },  
- 13958092: () => { return window.innerWidth },  
- 13958119: () => { return window.innerHeight },  
- 13958147: () => { return window.innerWidth },  
- 13958174: () => { return window.innerHeight },  
- 13958202: () => { return Date.now() / 1000.0; },  
- 13958234: () => { return WebGPU.Int_PreferredFormat[navigator.gpu.getPreferredCanvasFormat()]; }
+  13957953: ($0, $1, $2, $3) => { createWindow($0, $1, $2, $3) },  
+ 13957986: () => { Module.numWindows = 0; Module.events = []; Module.newInput = null; },  
+ 13958057: () => { return Module.numWindows; },  
+ 13958087: () => { return Module.events.length; },  
+ 13958120: () => { window.id },  
+ 13958132: () => { return window.innerWidth },  
+ 13958159: () => { return window.innerHeight },  
+ 13958187: () => { return window.innerWidth },  
+ 13958214: () => { return window.innerHeight },  
+ 13958242: () => { return Date.now() / 1000.0; },  
+ 13958274: () => { return WebGPU.Int_PreferredFormat[navigator.gpu.getPreferredCanvasFormat()]; }
 };
 function __asyncjs__JSMapSync(bufferID,mode,offset,size) { return Asyncify.handleAsync(async () => { const bufferWrapper = WebGPU.mgrBuffer.objects[bufferID]; const buffer = bufferWrapper.object; const result = await buffer.mapAsync(mode, offset, size); bufferWrapper.mapMode = mode; bufferWrapper.onUnmap = []; return result; }); }
 __asyncjs__JSMapSync.sig = 'iiiii';
@@ -4123,8 +4123,8 @@ var stackAlloc = createExportWrapper('stackAlloc');
 var _emscripten_stack_get_current = () => (_emscripten_stack_get_current = wasmExports['emscripten_stack_get_current'])();
 var ___cxa_is_pointer_type = createExportWrapper('__cxa_is_pointer_type');
 var dynCall_jiji = Module['dynCall_jiji'] = createExportWrapper('dynCall_jiji');
-var ___start_em_js = Module['___start_em_js'] = 13956000;
-var ___stop_em_js = Module['___stop_em_js'] = 13957913;
+var ___start_em_js = Module['___start_em_js'] = 13956040;
+var ___stop_em_js = Module['___stop_em_js'] = 13957953;
 
 // include: postamble.js
 // === Auto-generated postamble setup entry stuff ===
