@@ -2,7 +2,7 @@
 // The Module object: Our interface to the outside world. We import
 // and export values on it. There are various ways Module can be used:
 // 1. Not defined. We create it here
-// 2. A function parameter, function(Module) { ..generated code.. }
+// 2. A function parameter, function(moduleArg) => Promise<Module>
 // 3. pre-run appended it, var Module = {}; ..generated code..
 // 4. External script tag defines var Module.
 // We need to check if Module already exists (e.g. case 3 above).
@@ -13,6 +13,29 @@
 // before the code. Then that object will be used in the code, and you
 // can continue to use Module afterwards as well.
 var Module = typeof Module != 'undefined' ? Module : {};
+
+// Determine the runtime environment we are in. You can customize this by
+// setting the ENVIRONMENT setting at compile time (see settings.js).
+
+// Attempt to auto-detect the environment
+var ENVIRONMENT_IS_WEB = typeof window == 'object';
+var ENVIRONMENT_IS_WORKER = typeof importScripts == 'function';
+// N.b. Electron.js environment is simultaneously a NODE-environment, but
+// also a web environment.
+var ENVIRONMENT_IS_NODE = typeof process == 'object' && typeof process.versions == 'object' && typeof process.versions.node == 'string';
+var ENVIRONMENT_IS_SHELL = !ENVIRONMENT_IS_WEB && !ENVIRONMENT_IS_NODE && !ENVIRONMENT_IS_WORKER;
+
+if (Module['ENVIRONMENT']) {
+  throw new Error('Module.ENVIRONMENT has been deprecated. To force the environment, use the ENVIRONMENT compile-time option (for example, -sENVIRONMENT=web or -sENVIRONMENT=node)');
+}
+
+if (ENVIRONMENT_IS_NODE) {
+  // `require()` is no-op in an ESM module, use `createRequire()` to construct
+  // the require()` function.  This is only necessary for multi-environment
+  // builds, `-sENVIRONMENT=node` emits a static import declaration instead.
+  // TODO: Swap all `require()`'s with `import()`'s?
+
+}
 
 // --pre-jses are emitted after the Module integration code, so that they can
 // refer to Module (if they choose; they can also define Module)
@@ -31,21 +54,6 @@ var quit_ = (status, toThrow) => {
   throw toThrow;
 };
 
-// Determine the runtime environment we are in. You can customize this by
-// setting the ENVIRONMENT setting at compile time (see settings.js).
-
-// Attempt to auto-detect the environment
-var ENVIRONMENT_IS_WEB = typeof window == 'object';
-var ENVIRONMENT_IS_WORKER = typeof importScripts == 'function';
-// N.b. Electron.js environment is simultaneously a NODE-environment, but
-// also a web environment.
-var ENVIRONMENT_IS_NODE = typeof process == 'object' && typeof process.versions == 'object' && typeof process.versions.node == 'string';
-var ENVIRONMENT_IS_SHELL = !ENVIRONMENT_IS_WEB && !ENVIRONMENT_IS_NODE && !ENVIRONMENT_IS_WORKER;
-
-if (Module['ENVIRONMENT']) {
-  throw new Error('Module.ENVIRONMENT has been deprecated. To force the environment, use the ENVIRONMENT compile-time option (for example, -sENVIRONMENT=web or -sENVIRONMENT=node)');
-}
-
 // `/` should be present at the end if `scriptDirectory` is not empty
 var scriptDirectory = '';
 function locateFile(path) {
@@ -56,9 +64,7 @@ function locateFile(path) {
 }
 
 // Hooks that are implemented differently in different runtime environments.
-var read_,
-    readAsync,
-    readBinary;
+var readAsync, readBinary;
 
 if (ENVIRONMENT_IS_NODE) {
   if (typeof process == 'undefined' || !process.release || process.release.name !== 'node') throw new Error('not compiled for this environment (did you build to HTML and try to run it not on the web, or set ENVIRONMENT to something - like node - and run it someplace else - like on the web?)');
@@ -71,44 +77,31 @@ if (ENVIRONMENT_IS_NODE) {
     throw new Error('This emscripten-generated code requires node v16.0.0 (detected v' + nodeVersion + ')');
   }
 
-  // `require()` is no-op in an ESM module, use `createRequire()` to construct
-  // the require()` function.  This is only necessary for multi-environment
-  // builds, `-sENVIRONMENT=node` emits a static import declaration instead.
-  // TODO: Swap all `require()`'s with `import()`'s?
   // These modules will usually be used on Node.js. Load them eagerly to avoid
   // the complexity of lazy-loading.
   var fs = require('fs');
   var nodePath = require('path');
 
-  if (ENVIRONMENT_IS_WORKER) {
-    scriptDirectory = nodePath.dirname(scriptDirectory) + '/';
-  } else {
-    scriptDirectory = __dirname + '/';
-  }
+  scriptDirectory = __dirname + '/';
 
 // include: node_shell_read.js
-read_ = (filename, binary) => {
+readBinary = (filename) => {
   // We need to re-wrap `file://` strings to URLs. Normalizing isn't
   // necessary in that case, the path should already be absolute.
   filename = isFileURI(filename) ? new URL(filename) : nodePath.normalize(filename);
-  return fs.readFileSync(filename, binary ? undefined : 'utf8');
-};
-
-readBinary = (filename) => {
-  var ret = read_(filename, true);
-  if (!ret.buffer) {
-    ret = new Uint8Array(ret);
-  }
+  var ret = fs.readFileSync(filename);
   assert(ret.buffer);
   return ret;
 };
 
-readAsync = (filename, onload, onerror, binary = true) => {
-  // See the comment in the `read_` function.
+readAsync = (filename, binary = true) => {
+  // See the comment in the `readBinary` function.
   filename = isFileURI(filename) ? new URL(filename) : nodePath.normalize(filename);
-  fs.readFile(filename, binary ? undefined : 'utf8', (err, data) => {
-    if (err) onerror(err);
-    else onload(binary ? data.buffer : data);
+  return new Promise((resolve, reject) => {
+    fs.readFile(filename, binary ? undefined : 'utf8', (err, data) => {
+      if (err) reject(err);
+      else resolve(binary ? data.buffer : data);
+    });
   });
 };
 // end include: node_shell_read.js
@@ -122,13 +115,6 @@ readAsync = (filename, onload, onerror, binary = true) => {
     module['exports'] = Module;
   }
 
-  process.on('uncaughtException', (ex) => {
-    // suppress ExitStatus exceptions from showing an error
-    if (ex !== 'unwind' && !(ex instanceof ExitStatus) && !(ex.context instanceof ExitStatus)) {
-      throw ex;
-    }
-  });
-
   quit_ = (status, toThrow) => {
     process.exitCode = status;
     throw toThrow;
@@ -138,70 +124,6 @@ readAsync = (filename, onload, onerror, binary = true) => {
 if (ENVIRONMENT_IS_SHELL) {
 
   if ((typeof process == 'object' && typeof require === 'function') || typeof window == 'object' || typeof importScripts == 'function') throw new Error('not compiled for this environment (did you build to HTML and try to run it not on the web, or set ENVIRONMENT to something - like node - and run it someplace else - like on the web?)');
-
-  if (typeof read != 'undefined') {
-    read_ = read;
-  }
-
-  readBinary = (f) => {
-    if (typeof readbuffer == 'function') {
-      return new Uint8Array(readbuffer(f));
-    }
-    let data = read(f, 'binary');
-    assert(typeof data == 'object');
-    return data;
-  };
-
-  readAsync = (f, onload, onerror) => {
-    setTimeout(() => onload(readBinary(f)));
-  };
-
-  if (typeof clearTimeout == 'undefined') {
-    globalThis.clearTimeout = (id) => {};
-  }
-
-  if (typeof setTimeout == 'undefined') {
-    // spidermonkey lacks setTimeout but we use it above in readAsync.
-    globalThis.setTimeout = (f) => (typeof f == 'function') ? f() : abort();
-  }
-
-  if (typeof scriptArgs != 'undefined') {
-    arguments_ = scriptArgs;
-  } else if (typeof arguments != 'undefined') {
-    arguments_ = arguments;
-  }
-
-  if (typeof quit == 'function') {
-    quit_ = (status, toThrow) => {
-      // Unlike node which has process.exitCode, d8 has no such mechanism. So we
-      // have no way to set the exit code and then let the program exit with
-      // that code when it naturally stops running (say, when all setTimeouts
-      // have completed). For that reason, we must call `quit` - the only way to
-      // set the exit code - but quit also halts immediately.  To increase
-      // consistency with node (and the web) we schedule the actual quit call
-      // using a setTimeout to give the current stack and any exception handlers
-      // a chance to run.  This enables features such as addOnPostRun (which
-      // expected to be able to run code after main returns).
-      setTimeout(() => {
-        if (!(toThrow instanceof ExitStatus)) {
-          let toLog = toThrow;
-          if (toThrow && typeof toThrow == 'object' && toThrow.stack) {
-            toLog = [toThrow, toThrow.stack];
-          }
-          err(`exiting due to exception: ${toLog}`);
-        }
-        quit(status);
-      });
-      throw toThrow;
-    };
-  }
-
-  if (typeof print != 'undefined') {
-    // Prefer to use print/printErr where they exist, as they usually work better.
-    if (typeof console == 'undefined') console = /** @type{!Console} */({});
-    console.log = /** @type{!function(this:Console, ...*): undefined} */ (print);
-    console.warn = console.error = /** @type{!function(this:Console, ...*): undefined} */ (typeof printErr != 'undefined' ? printErr : print);
-  }
 
 } else
 
@@ -228,18 +150,9 @@ if (ENVIRONMENT_IS_WEB || ENVIRONMENT_IS_WORKER) {
 
   if (!(typeof window == 'object' || typeof importScripts == 'function')) throw new Error('not compiled for this environment (did you build to HTML and try to run it not on the web, or set ENVIRONMENT to something - like node - and run it someplace else - like on the web?)');
 
-  // Differentiate the Web Worker from the Node Worker case, as reading must
-  // be done differently.
   {
 // include: web_or_worker_shell_read.js
-read_ = (url) => {
-    var xhr = new XMLHttpRequest();
-    xhr.open('GET', url, false);
-    xhr.send(null);
-    return xhr.responseText;
-  }
-
-  if (ENVIRONMENT_IS_WORKER) {
+if (ENVIRONMENT_IS_WORKER) {
     readBinary = (url) => {
       var xhr = new XMLHttpRequest();
       xhr.open('GET', url, false);
@@ -249,21 +162,35 @@ read_ = (url) => {
     };
   }
 
-  readAsync = (url, onload, onerror) => {
-    var xhr = new XMLHttpRequest();
-    xhr.open('GET', url, true);
-    xhr.responseType = 'arraybuffer';
-    xhr.onload = () => {
-      if (xhr.status == 200 || (xhr.status == 0 && xhr.response)) { // file URLs can return 0
-        onload(xhr.response);
-        return;
-      }
-      onerror();
-    };
-    xhr.onerror = onerror;
-    xhr.send(null);
-  }
-
+  readAsync = (url) => {
+    // Fetch has some additional restrictions over XHR, like it can't be used on a file:// url.
+    // See https://github.com/github/fetch/pull/92#issuecomment-140665932
+    // Cordova or Electron apps are typically loaded from a file:// url.
+    // So use XHR on webview if URL is a file URL.
+    if (isFileURI(url)) {
+      return new Promise((resolve, reject) => {
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', url, true);
+        xhr.responseType = 'arraybuffer';
+        xhr.onload = () => {
+          if (xhr.status == 200 || (xhr.status == 0 && xhr.response)) { // file URLs can return 0
+            resolve(xhr.response);
+            return;
+          }
+          reject(xhr.status);
+        };
+        xhr.onerror = reject;
+        xhr.send(null);
+      });
+    }
+    return fetch(url, { credentials: 'same-origin' })
+      .then((response) => {
+        if (response.ok) {
+          return response.arrayBuffer();
+        }
+        return Promise.reject(new Error(response.status + ' : ' + response.url));
+      })
+  };
 // end include: web_or_worker_shell_read.js
   }
 } else
@@ -277,7 +204,7 @@ var err = Module['printErr'] || console.error.bind(console);
 // Merge back in the overrides
 Object.assign(Module, moduleOverrides);
 // Free the object hierarchy contained in the overrides, this lets the GC
-// reclaim data used e.g. in memoryInitializerRequest, which is a large typed array.
+// reclaim data used.
 moduleOverrides = null;
 checkIncomingModuleAPI();
 
@@ -290,21 +217,18 @@ if (Module['arguments']) arguments_ = Module['arguments'];legacyModuleProp('argu
 
 if (Module['thisProgram']) thisProgram = Module['thisProgram'];legacyModuleProp('thisProgram', 'thisProgram');
 
-if (Module['quit']) quit_ = Module['quit'];legacyModuleProp('quit', 'quit_');
-
 // perform assertions in shell.js after we set up out() and err(), as otherwise if an assertion fails it cannot print the message
 // Assertions on removed incoming Module JS APIs.
 assert(typeof Module['memoryInitializerPrefixURL'] == 'undefined', 'Module.memoryInitializerPrefixURL option was removed, use Module.locateFile instead');
 assert(typeof Module['pthreadMainPrefixURL'] == 'undefined', 'Module.pthreadMainPrefixURL option was removed, use Module.locateFile instead');
 assert(typeof Module['cdInitializerPrefixURL'] == 'undefined', 'Module.cdInitializerPrefixURL option was removed, use Module.locateFile instead');
 assert(typeof Module['filePackagePrefixURL'] == 'undefined', 'Module.filePackagePrefixURL option was removed, use Module.locateFile instead');
-assert(typeof Module['read'] == 'undefined', 'Module.read option was removed (modify read_ in JS)');
+assert(typeof Module['read'] == 'undefined', 'Module.read option was removed');
 assert(typeof Module['readAsync'] == 'undefined', 'Module.readAsync option was removed (modify readAsync in JS)');
 assert(typeof Module['readBinary'] == 'undefined', 'Module.readBinary option was removed (modify readBinary in JS)');
 assert(typeof Module['setWindowTitle'] == 'undefined', 'Module.setWindowTitle option was removed (modify emscripten_set_window_title in JS)');
 assert(typeof Module['TOTAL_MEMORY'] == 'undefined', 'Module.TOTAL_MEMORY has been renamed Module.INITIAL_MEMORY');
 legacyModuleProp('asm', 'wasmExports');
-legacyModuleProp('read', 'read_');
 legacyModuleProp('readAsync', 'readAsync');
 legacyModuleProp('readBinary', 'readBinary');
 legacyModuleProp('setWindowTitle', 'setWindowTitle');
@@ -320,8 +244,8 @@ var NODEFS = 'NODEFS is no longer included by default; build with -lnodefs.js';
 
 assert(!ENVIRONMENT_IS_SHELL, 'shell environment detected but not enabled at build time.  Add `shell` to `-sENVIRONMENT` to enable.');
 
-
 // end include: shell.js
+
 // include: preamble.js
 // === Preamble library stuff ===
 
@@ -333,11 +257,10 @@ assert(!ENVIRONMENT_IS_SHELL, 'shell environment detected but not enabled at bui
 // An online HTML version (which may be of a different version of Emscripten)
 //    is up at http://kripken.github.io/emscripten-site/docs/api_reference/preamble.js.html
 
-var wasmBinary; 
-if (Module['wasmBinary']) wasmBinary = Module['wasmBinary'];legacyModuleProp('wasmBinary', 'wasmBinary');
+var wasmBinary = Module['wasmBinary'];legacyModuleProp('wasmBinary', 'wasmBinary');
 
 if (typeof WebAssembly != 'object') {
-  abort('no native wasm support detected');
+  err('no native wasm support detected');
 }
 
 // Wasm globals
@@ -391,6 +314,7 @@ var HEAP,
 /** @type {!Float64Array} */
   HEAPF64;
 
+// include: runtime_shared.js
 function updateMemoryViews() {
   var b = wasmMemory.buffer;
   Module['HEAP8'] = HEAP8 = new Int8Array(b);
@@ -403,6 +327,7 @@ function updateMemoryViews() {
   Module['HEAPF64'] = HEAPF64 = new Float64Array(b);
 }
 
+// end include: runtime_shared.js
 assert(!Module['STACK_SIZE'], 'STACK_SIZE can no longer be set at runtime.  Use -sSTACK_SIZE at link time')
 
 assert(typeof Int32Array != 'undefined' && typeof Float64Array !== 'undefined' && Int32Array.prototype.subarray != undefined && Int32Array.prototype.set != undefined,
@@ -450,16 +375,6 @@ function checkStackCookie() {
   }
 }
 // end include: runtime_stack_check.js
-// include: runtime_assertions.js
-// Endianness check
-(function() {
-  var h16 = new Int16Array(1);
-  var h8 = new Int8Array(h16.buffer);
-  h16[0] = 0x6373;
-  if (h8[0] !== 0x73 || h8[1] !== 0x63) throw 'Runtime error: expected the system to be little-endian! (Run with -sSUPPORT_BIG_ENDIAN to bypass)';
-})();
-
-// end include: runtime_assertions.js
 var __ATPRERUN__  = []; // functions called before the runtime is initialized
 var __ATINIT__    = []; // functions called during startup
 var __ATMAIN__    = []; // functions called when main() is to be run
@@ -628,7 +543,6 @@ function abort(what) {
   err(what);
 
   ABORT = true;
-  EXITSTATUS = 1;
 
   // Use a wasm runtime error, because a JS error might be seen as a foreign
   // exception, which means we'd run destructors on it. We need the error to
@@ -640,7 +554,7 @@ function abort(what) {
   // allows this in the wasm spec.
 
   // Suppress closure compiler warning here. Closure compiler's builtin extern
-  // defintion for WebAssembly.RuntimeError claims it takes no arguments even
+  // definition for WebAssembly.RuntimeError claims it takes no arguments even
   // though it can.
   // TODO(https://github.com/google/closure-compiler/pull/3913): Remove if/when upstream closure gets fixed.
   /** @suppress {checkTypes} */
@@ -689,22 +603,28 @@ var isDataURI = (filename) => filename.startsWith(dataURIPrefix);
  */
 var isFileURI = (filename) => filename.startsWith('file://');
 // end include: URIUtils.js
-function createExportWrapper(name) {
+function createExportWrapper(name, nargs) {
   return (...args) => {
     assert(runtimeInitialized, `native function \`${name}\` called before runtime initialization`);
     var f = wasmExports[name];
     assert(f, `exported native function \`${name}\` not found`);
+    // Only assert for too many arguments. Too few can be valid since the missing arguments will be zero filled.
+    assert(args.length <= nargs, `native function \`${name}\` called with ${args.length} args but expects ${nargs}`);
     return f(...args);
   };
 }
 
 // include: runtime_exceptions.js
 // end include: runtime_exceptions.js
+function findWasmBinary() {
+    var f = 'springy-3d.wasm';
+    if (!isDataURI(f)) {
+      return locateFile(f);
+    }
+    return f;
+}
+
 var wasmBinaryFile;
-  wasmBinaryFile = 'springy-3d.wasm';
-  if (!isDataURI(wasmBinaryFile)) {
-    wasmBinaryFile = locateFile(wasmBinaryFile);
-  }
 
 function getBinarySync(file) {
   if (file == wasmBinaryFile && wasmBinary) {
@@ -717,29 +637,15 @@ function getBinarySync(file) {
 }
 
 function getBinaryPromise(binaryFile) {
-  // If we don't have the binary yet, try to load it asynchronously.
-  // Fetch has some additional restrictions over XHR, like it can't be used on a file:// url.
-  // See https://github.com/github/fetch/pull/92#issuecomment-140665932
-  // Cordova or Electron apps are typically loaded from a file:// url.
-  // So use fetch if it is available and the url is not a file, otherwise fall back to XHR.
+  // If we don't have the binary yet, load it asynchronously using readAsync.
   if (!wasmBinary
-      && (ENVIRONMENT_IS_WEB || ENVIRONMENT_IS_WORKER)) {
-    if (typeof fetch == 'function'
-      && !isFileURI(binaryFile)
-    ) {
-      return fetch(binaryFile, { credentials: 'same-origin' }).then((response) => {
-        if (!response['ok']) {
-          throw `failed to load wasm binary file at '${binaryFile}'`;
-        }
-        return response['arrayBuffer']();
-      }).catch(() => getBinarySync(binaryFile));
-    }
-    else if (readAsync) {
-      // fetch is not available or url is file => try XHR (readAsync uses XHR internally)
-      return new Promise((resolve, reject) => {
-        readAsync(binaryFile, (response) => resolve(new Uint8Array(/** @type{!ArrayBuffer} */(response))), reject)
-      });
-    }
+      ) {
+    // Fetch the binary using readAsync
+    return readAsync(binaryFile).then(
+      (response) => new Uint8Array(/** @type{!ArrayBuffer} */(response)),
+      // Fall back to getBinarySync if readAsync fails
+      () => getBinarySync(binaryFile)
+    );
   }
 
   // Otherwise, getBinarySync should be able to get it synchronously
@@ -796,14 +702,22 @@ function instantiateAsync(binary, binaryFile, imports, callback) {
   return instantiateArrayBuffer(binaryFile, imports, callback);
 }
 
+function getWasmImports() {
+  // instrumenting imports is used in asyncify in two ways: to add assertions
+  // that check for proper import use, and for ASYNCIFY=2 we use them to set up
+  // the Promise API on the import side.
+  Asyncify.instrumentWasmImports(wasmImports);
+  // prepare imports
+  return {
+    'env': wasmImports,
+    'wasi_snapshot_preview1': wasmImports,
+  }
+}
+
 // Create the wasm instance.
 // Receives the wasm imports, returns the exports.
 function createWasm() {
-  // prepare imports
-  var info = {
-    'env': wasmImports,
-    'wasi_snapshot_preview1': wasmImports,
-  };
+  var info = getWasmImports();
   // Load the wasm module and create an instance of using native support in the JS engine.
   // handle a generated wasm instance, receiving its exports and
   // performing other necessary setup
@@ -818,10 +732,6 @@ function createWasm() {
     wasmMemory = wasmExports['memory'];
     
     assert(wasmMemory, 'memory not found in wasm exports');
-    // This assertion doesn't hold when emscripten is run in --post-link
-    // mode.
-    // TODO(sbc): Read INITIAL_MEMORY out of the wasm file in post-link mode.
-    //assert(wasmMemory.buffer.byteLength === 67108864);
     updateMemoryViews();
 
     wasmTable = wasmExports['__indirect_function_table'];
@@ -858,7 +768,6 @@ function createWasm() {
   // Also pthreads and wasm workers initialize the wasm instance through this
   // path.
   if (Module['instantiateWasm']) {
-
     try {
       return Module['instantiateWasm'](info, receiveInstance);
     } catch(e) {
@@ -866,6 +775,8 @@ function createWasm() {
         return false;
     }
   }
+
+  if (!wasmBinaryFile) wasmBinaryFile = findWasmBinary();
 
   instantiateAsync(wasmBinary, wasmBinaryFile, info, receiveInstantiationResult);
   return {}; // no exports yet; we'll fill them in later
@@ -876,12 +787,20 @@ var tempDouble;
 var tempI64;
 
 // include: runtime_debug.js
-function legacyModuleProp(prop, newName, incomming=true) {
+// Endianness check
+(() => {
+  var h16 = new Int16Array(1);
+  var h8 = new Int8Array(h16.buffer);
+  h16[0] = 0x6373;
+  if (h8[0] !== 0x73 || h8[1] !== 0x63) throw 'Runtime error: expected the system to be little-endian! (Run with -sSUPPORT_BIG_ENDIAN to bypass)';
+})();
+
+function legacyModuleProp(prop, newName, incoming=true) {
   if (!Object.getOwnPropertyDescriptor(Module, prop)) {
     Object.defineProperty(Module, prop, {
       configurable: true,
       get() {
-        let extra = incomming ? ' (the initial value can be provided on Module, but after startup the value is only looked for on a local variable of that name)' : '';
+        let extra = incoming ? ' (the initial value can be provided on Module, but after startup the value is only looked for on a local variable of that name)' : '';
         abort(`\`Module.${prop}\` has been replaced by \`${newName}\`` + extra);
 
       }
@@ -909,7 +828,7 @@ function isExportedByForceFilesystem(name) {
 }
 
 function missingGlobal(sym, msg) {
-  if (typeof globalThis !== 'undefined') {
+  if (typeof globalThis != 'undefined') {
     Object.defineProperty(globalThis, sym, {
       configurable: true,
       get() {
@@ -924,7 +843,7 @@ missingGlobal('buffer', 'Please use HEAP8.buffer or wasmMemory.buffer');
 missingGlobal('asm', 'Please use wasmExports instead');
 
 function missingLibrarySymbol(sym) {
-  if (typeof globalThis !== 'undefined' && !Object.getOwnPropertyDescriptor(globalThis, sym)) {
+  if (typeof globalThis != 'undefined' && !Object.getOwnPropertyDescriptor(globalThis, sym)) {
     Object.defineProperty(globalThis, sym, {
       configurable: true,
       get() {
@@ -947,7 +866,7 @@ function missingLibrarySymbol(sym) {
       }
     });
   }
-  // Any symbol that is not included from the JS libary is also (by definition)
+  // Any symbol that is not included from the JS library is also (by definition)
   // not exported on the Module object.
   unexportedRuntimeSymbol(sym);
 }
@@ -977,17 +896,17 @@ function dbg(...args) {
 // === Body ===
 
 var ASM_CONSTS = {
-  4213633: ($0, $1, $2, $3) => { createWindow($0, $1, $2, $3) },  
- 4213666: () => { Module.numWindows = 0; Module.events = []; Module.newInput = null; },  
- 4213737: () => { return Module.numWindows; },  
- 4213767: () => { return Module.events.length; },  
- 4213800: () => { window.id },  
- 4213812: () => { return window.innerWidth },  
- 4213839: () => { return window.innerHeight },  
- 4213867: () => { return window.innerWidth },  
- 4213894: () => { return window.innerHeight },  
- 4213922: () => { return Date.now() / 1000.0; },  
- 4213954: () => { return WebGPU.Int_PreferredFormat[navigator.gpu.getPreferredCanvasFormat()]; }
+  4216369: ($0, $1, $2, $3) => { createWindow($0, $1, $2, $3) },  
+ 4216402: () => { Module.numWindows = 0; Module.events = []; Module.newInput = null; },  
+ 4216473: () => { return Module.numWindows; },  
+ 4216503: () => { return Module.events.length; },  
+ 4216536: () => { window.id },  
+ 4216548: () => { return window.innerWidth },  
+ 4216575: () => { return window.innerHeight },  
+ 4216603: () => { return window.innerWidth },  
+ 4216630: () => { return window.innerHeight },  
+ 4216658: () => { return Date.now() / 1000.0; },  
+ 4216690: () => { return WebGPU.Int_PreferredFormat[navigator.gpu.getPreferredCanvasFormat()]; }
 };
 function __asyncjs__JSMapSync(bufferID,mode,offset,size) { return Asyncify.handleAsync(async () => { const bufferWrapper = WebGPU.mgrBuffer.objects[bufferID]; const buffer = bufferWrapper.object; const result = await buffer.mapAsync(mode, offset, size); bufferWrapper.mapMode = mode; bufferWrapper.onUnmap = []; return result; }); }
 function createWindow(x,y,width,height) { var w; var canvas; if (Module.numWindows == 0) { w = window; canvas = w.document.getElementById("canvas"); canvas.width = width; canvas.height = height; Module.requestFullscreen = () => { canvas.requestFullscreen(); } } else { w = window.open("", "", "left=" + x + ", top=" + y + ", width=" + width + ", height=" + height); w.document.body.style.margin = 0; var canvas = w.document.createElement("canvas"); canvas.style.display = "block"; w.document.body.appendChild(canvas); } const events = ["mousedown", "mousemove", "mouseup", "touchstart", "touchmove", "touchend", "resize"]; var inputListener = (e) => { e.preventDefault(); Module.events.push(e); if (Module.newInput) Module.newInput(); }; events.forEach((eventType) => canvas.addEventListener(eventType, inputListener, { passive: false })); w.oncontextmenu = (e) => { e.preventDefault() }; specialHTMLTargets["!toucanvas"] = canvas; return w.id = Module.numWindows++; }
@@ -998,8 +917,8 @@ __asyncjs__JSWaitForNextEvent.sig = 'v';
 function __asyncjs__JSWaitForRAF() { return Asyncify.handleAsync(async () => { await new Promise(resolve => { requestAnimationFrame(resolve); }); }); }
 __asyncjs__JSWaitForRAF.sig = 'v';
 
-
 // end include: preamble.js
+
 
   /** @constructor */
   function ExitStatus(status) {
@@ -1065,6 +984,10 @@ __asyncjs__JSWaitForRAF.sig = 'v';
     }
   }
 
+  var stackRestore = (val) => __emscripten_stack_restore(val);
+
+  var stackSave = () => _emscripten_stack_get_current();
+
   var warnOnce = (text) => {
       warnOnce.shown ||= {};
       if (!warnOnce.shown[text]) {
@@ -1074,7 +997,7 @@ __asyncjs__JSWaitForRAF.sig = 'v';
       }
     };
 
-  var UTF8Decoder = typeof TextDecoder != 'undefined' ? new TextDecoder('utf8') : undefined;
+  var UTF8Decoder = typeof TextDecoder != 'undefined' ? new TextDecoder() : undefined;
   
     /**
      * Given a pointer 'idx' to a null-terminated UTF8-encoded string in the given
@@ -1150,7 +1073,6 @@ __asyncjs__JSWaitForRAF.sig = 'v';
   var ___assert_fail = (condition, filename, line, func) => {
       abort(`Assertion failed: ${UTF8ToString(condition)}, at: ` + [filename ? UTF8ToString(filename) : 'unknown filename', line, func ? UTF8ToString(func) : 'unknown function']);
     };
-  ___assert_fail.sig = 'vppip';
 
   class ExceptionInfo {
       // excPtr - Thrown object pointer to wrap. Metadata pointer is calculated from it.
@@ -1207,22 +1129,6 @@ __asyncjs__JSWaitForRAF.sig = 'v';
       get_adjusted_ptr() {
         return HEAPU32[(((this.ptr)+(16))>>2)];
       }
-  
-      // Get pointer which is expected to be received by catch clause in C++ code. It may be adjusted
-      // when the pointer is casted to some of the exception object base classes (e.g. when virtual
-      // inheritance is used). When a pointer is thrown this method should return the thrown pointer
-      // itself.
-      get_exception_ptr() {
-        // Work around a fastcomp bug, this code is still included for some reason in a build without
-        // exceptions support.
-        var isPointer = ___cxa_is_pointer_type(this.get_type());
-        if (isPointer) {
-          return HEAPU32[((this.excPtr)>>2)];
-        }
-        var adjusted = this.get_adjusted_ptr();
-        if (adjusted !== 0) return adjusted;
-        return this.excPtr;
-      }
     }
   
   var exceptionLast = 0;
@@ -1236,10 +1142,12 @@ __asyncjs__JSWaitForRAF.sig = 'v';
       uncaughtExceptionCount++;
       assert(false, 'Exception thrown, but exception catching is not enabled. Compile with -sNO_DISABLE_EXCEPTION_CATCHING or -sEXCEPTION_CATCHING_ALLOWED=[..] to catch.');
     };
-  ___cxa_throw.sig = 'vppp';
+
+  var __abort_js = () => {
+      abort('native code called abort()');
+    };
 
   var __embind_register_bigint = (primitiveType, name, size, minRange, maxRange) => {};
-  __embind_register_bigint.sig = 'vpppiiii';
 
   var embind_init_charCodes = () => {
       var codes = new Array(256);
@@ -1276,18 +1184,16 @@ __asyncjs__JSWaitForRAF.sig = 'v';
   var InternalError;
   var throwInternalError = (message) => { throw new InternalError(message); };
   var whenDependentTypesAreResolved = (myTypes, dependentTypes, getTypeConverters) => {
-      myTypes.forEach(function(type) {
-          typeDependencies[type] = dependentTypes;
-      });
+      myTypes.forEach((type) => typeDependencies[type] = dependentTypes);
   
       function onComplete(typeConverters) {
-          var myTypeConverters = getTypeConverters(typeConverters);
-          if (myTypeConverters.length !== myTypes.length) {
-              throwInternalError('Mismatched type converter count');
-          }
-          for (var i = 0; i < myTypes.length; ++i) {
-              registerType(myTypes[i], myTypeConverters[i]);
-          }
+        var myTypeConverters = getTypeConverters(typeConverters);
+        if (myTypeConverters.length !== myTypes.length) {
+          throwInternalError('Mismatched type converter count');
+        }
+        for (var i = 0; i < myTypes.length; ++i) {
+          registerType(myTypes[i], myTypeConverters[i]);
+        }
       }
   
       var typeConverters = new Array(dependentTypes.length);
@@ -1359,14 +1265,13 @@ __asyncjs__JSWaitForRAF.sig = 'v';
           'toWireType': function(destructors, o) {
               return o ? trueValue : falseValue;
           },
-          'argPackAdvance': GenericWireTypeSize,
+          argPackAdvance: GenericWireTypeSize,
           'readValueFromPointer': function(pointer) {
               return this['fromWireType'](HEAPU8[pointer]);
           },
           destructorFunction: null, // This type does not need a destructor
       });
     };
-  __embind_register_bool.sig = 'vppii';
 
   
   var emval_freelist = [];
@@ -1379,7 +1284,6 @@ __asyncjs__JSWaitForRAF.sig = 'v';
         emval_freelist.push(handle);
       }
     };
-  __emval_decref.sig = 'vp';
   
   
   
@@ -1439,7 +1343,7 @@ __asyncjs__JSWaitForRAF.sig = 'v';
         return rv;
       },
       'toWireType': (destructors, value) => Emval.toHandle(value),
-      'argPackAdvance': GenericWireTypeSize,
+      argPackAdvance: GenericWireTypeSize,
       'readValueFromPointer': readPointer,
       destructorFunction: null, // This type does not need a destructor
   
@@ -1447,7 +1351,6 @@ __asyncjs__JSWaitForRAF.sig = 'v';
       // emval is passed into JS via an interface
     };
   var __embind_register_emval = (rawType) => registerType(rawType, EmValType);
-  __embind_register_emval.sig = 'vp';
 
   var embindRepr = (v) => {
       if (v === null) {
@@ -1488,12 +1391,11 @@ __asyncjs__JSWaitForRAF.sig = 'v';
           // https://www.w3.org/TR/wasm-js-api-1/#towebassemblyvalue
           return value;
         },
-        'argPackAdvance': GenericWireTypeSize,
+        argPackAdvance: GenericWireTypeSize,
         'readValueFromPointer': floatReadValueFromPointer(name, size),
         destructorFunction: null, // This type does not need a destructor
       });
     };
-  __embind_register_float.sig = 'vppp';
 
   
   var integerReadValueFromPointer = (name, width, signed) => {
@@ -1557,12 +1459,11 @@ __asyncjs__JSWaitForRAF.sig = 'v';
         name,
         'fromWireType': fromWireType,
         'toWireType': toWireType,
-        'argPackAdvance': GenericWireTypeSize,
+        argPackAdvance: GenericWireTypeSize,
         'readValueFromPointer': integerReadValueFromPointer(name, size, minRange !== 0),
         destructorFunction: null, // This type does not need a destructor
       });
     };
-  __embind_register_integer.sig = 'vpppii';
 
   
   var __embind_register_memory_view = (rawType, dataTypeIndex, name) => {
@@ -1589,13 +1490,12 @@ __asyncjs__JSWaitForRAF.sig = 'v';
       registerType(rawType, {
         name,
         'fromWireType': decodeMemoryView,
-        'argPackAdvance': GenericWireTypeSize,
+        argPackAdvance: GenericWireTypeSize,
         'readValueFromPointer': decodeMemoryView,
       }, {
         ignoreDuplicateRegistrations: true,
       });
     };
-  __embind_register_memory_view.sig = 'vpip';
 
   
   
@@ -1765,14 +1665,13 @@ __asyncjs__JSWaitForRAF.sig = 'v';
           }
           return base;
         },
-        'argPackAdvance': GenericWireTypeSize,
+        argPackAdvance: GenericWireTypeSize,
         'readValueFromPointer': readPointer,
         destructorFunction(ptr) {
           _free(ptr);
         },
       });
     };
-  __embind_register_std_string.sig = 'vpp';
 
   
   
@@ -1955,14 +1854,13 @@ __asyncjs__JSWaitForRAF.sig = 'v';
           }
           return ptr;
         },
-        'argPackAdvance': GenericWireTypeSize,
+        argPackAdvance: GenericWireTypeSize,
         'readValueFromPointer': readPointer,
         destructorFunction(ptr) {
           _free(ptr);
         }
       });
     };
-  __embind_register_std_wstring.sig = 'vppp';
 
   
   var __embind_register_void = (rawType, name) => {
@@ -1970,13 +1868,14 @@ __asyncjs__JSWaitForRAF.sig = 'v';
       registerType(rawType, {
         isVoid: true, // void return values can be optimized out sometimes
         name,
-        'argPackAdvance': 0,
+        argPackAdvance: 0,
         'fromWireType': () => undefined,
         // TODO: assert if anything else is given?
         'toWireType': (destructors, o) => undefined,
       });
     };
-  __embind_register_void.sig = 'vpp';
+
+  var __emscripten_memcpy_js = (dest, src, num) => HEAPU8.copyWithin(dest, src, src + num);
 
   
   
@@ -2011,7 +1910,6 @@ __asyncjs__JSWaitForRAF.sig = 'v';
       returnType = requireRegisteredType(returnType, 'emval::as');
       return emval_returnValue(returnType, destructorsRef, handle);
     };
-  __emval_as.sig = 'dppp';
 
   var emval_symbols = {
   };
@@ -2032,7 +1930,6 @@ __asyncjs__JSWaitForRAF.sig = 'v';
       methodName = getStringOrSymbol(methodName);
       return caller(objHandle, objHandle[methodName], destructorsRef, args);
     };
-  __emval_call_method.sig = 'dppppp';
 
 
   
@@ -2053,7 +1950,6 @@ __asyncjs__JSWaitForRAF.sig = 'v';
         return Emval.toHandle(emval_get_global()[name]);
       }
     };
-  __emval_get_global.sig = 'pp';
 
   var emval_addMethodCaller = (caller) => {
       var id = emval_methodCallers.length;
@@ -2088,7 +1984,7 @@ __asyncjs__JSWaitForRAF.sig = 'v';
        * though at creation, the 'dummy' has the correct constructor name.  Thus,
        * objects created with IMVU.new would show up in the debugger as 'dummy',
        * which isn't very helpful.  Using IMVU.createNamedFunction addresses the
-       * issue.  Doublely-unfortunately, there's no way to write a test for this
+       * issue.  Doubly-unfortunately, there's no way to write a test for this
        * behavior.  -NRD 2013.02.22
        */
       var dummy = createNamedFunction(constructor.name || 'unknownFunctionName', function(){});
@@ -2119,7 +2015,7 @@ __asyncjs__JSWaitForRAF.sig = 'v';
         args.push(types[i]);
         functionBody +=
           `  var arg${i} = argType${i}.readValueFromPointer(args${offset ? "+" + offset : ""});\n`;
-        offset += types[i]['argPackAdvance'];
+        offset += types[i].argPackAdvance;
       }
       var invoker = kind === /* CONSTRUCTOR */ 1 ? 'new func' : 'func.call';
       functionBody +=
@@ -2138,25 +2034,21 @@ __asyncjs__JSWaitForRAF.sig = 'v';
       var functionName = `methodCaller<(${types.map(t => t.name).join(', ')}) => ${retType.name}>`;
       return emval_addMethodCaller(createNamedFunction(functionName, invokerFunction));
     };
-  __emval_get_method_caller.sig = 'pipi';
 
   var __emval_get_property = (handle, key) => {
       handle = Emval.toValue(handle);
       key = Emval.toValue(key);
       return Emval.toHandle(handle[key]);
     };
-  __emval_get_property.sig = 'ppp';
 
   var __emval_incref = (handle) => {
       if (handle > 9) {
         emval_handles[handle + 1] += 1;
       }
     };
-  __emval_incref.sig = 'vp';
 
   
   var __emval_new_cstring = (v) => Emval.toHandle(getStringOrSymbol(v));
-  __emval_new_cstring.sig = 'pp';
 
   
   
@@ -2172,12 +2064,6 @@ __asyncjs__JSWaitForRAF.sig = 'v';
       runDestructors(destructors);
       __emval_decref(handle);
     };
-  __emval_run_destructors.sig = 'vp';
-
-  var _abort = () => {
-      abort('native code called abort()');
-    };
-  _abort.sig = 'v';
 
   var readEmAsmArgsArray = [];
   var readEmAsmArgs = (sigPtr, buf) => {
@@ -2217,18 +2103,18 @@ __asyncjs__JSWaitForRAF.sig = 'v';
   var _emscripten_asm_const_double = (code, sigPtr, argbuf) => {
       return runEmAsmFunction(code, sigPtr, argbuf);
     };
-  _emscripten_asm_const_double.sig = 'dppp';
 
   var _emscripten_asm_const_int = (code, sigPtr, argbuf) => {
       return runEmAsmFunction(code, sigPtr, argbuf);
     };
-  _emscripten_asm_const_int.sig = 'ippp';
-
-  var _emscripten_memcpy_js = (dest, src, num) => HEAPU8.copyWithin(dest, src, src + num);
-  _emscripten_memcpy_js.sig = 'vppp';
 
   var getHeapMax = () =>
       HEAPU8.length;
+  
+  var alignMemory = (size, alignment) => {
+      assert(alignment, "alignment argument is required");
+      return Math.ceil(size / alignment) * alignment;
+    };
   
   var abortOnCannotGrowMemory = (requestedSize) => {
       abort(`Cannot enlarge memory arrays to size ${requestedSize} bytes (OOM). Either (1) compile with -sINITIAL_MEMORY=X with X higher than the current value ${HEAP8.length}, (2) compile with -sALLOW_MEMORY_GROWTH which allows increasing the size at runtime, or (3) if you want malloc to return NULL (0) instead of this abort, compile with -sABORTING_MALLOC=0`);
@@ -2239,18 +2125,9 @@ __asyncjs__JSWaitForRAF.sig = 'v';
       requestedSize >>>= 0;
       abortOnCannotGrowMemory(requestedSize);
     };
-  _emscripten_resize_heap.sig = 'ip';
 
   var SYSCALLS = {
   varargs:undefined,
-  get() {
-        assert(SYSCALLS.varargs != undefined);
-        // the `+` prepended here is necessary to convince the JSCompiler that varargs is indeed a number.
-        var ret = HEAP32[((+SYSCALLS.varargs)>>2)];
-        SYSCALLS.varargs += 4;
-        return ret;
-      },
-  getp() { return SYSCALLS.get() },
   getStr(ptr) {
         var ret = UTF8ToString(ptr);
         return ret;
@@ -2259,7 +2136,6 @@ __asyncjs__JSWaitForRAF.sig = 'v';
   var _fd_close = (fd) => {
       abort('fd_close called without SYSCALLS_REQUIRE_FILESYSTEM');
     };
-  _fd_close.sig = 'ii';
 
   var convertI32PairToI53Checked = (lo, hi) => {
       assert(lo == (lo >>> 0) || lo == (lo|0)); // lo should either be a i32 or a u32
@@ -2267,13 +2143,12 @@ __asyncjs__JSWaitForRAF.sig = 'v';
       return ((hi + 0x200000) >>> 0 < 0x400001 - !!lo) ? (lo >>> 0) + hi * 4294967296 : NaN;
     };
   function _fd_seek(fd,offset_low, offset_high,whence,newOffset) {
-    var offset = convertI32PairToI53Checked(offset_low, offset_high);;
+    var offset = convertI32PairToI53Checked(offset_low, offset_high);
   
     
       return 70;
     ;
   }
-  _fd_seek.sig = 'iiiiip';
 
   var printCharBuffers = [null,[],[]];
   
@@ -2311,17 +2186,12 @@ __asyncjs__JSWaitForRAF.sig = 'v';
       HEAPU32[((pnum)>>2)] = num;
       return 0;
     };
-  _fd_write.sig = 'iippp';
 
   
-  var withStackSave = (f) => {
-      var stack = stackSave();
-      var ret = f();
-      stackRestore(stack);
-      return ret;
-    };
   
   
+  
+  var stackAlloc = (sz) => __emscripten_stack_alloc(sz);
   var stringToUTF8OnStack = (str) => {
       var size = lengthBytesUTF8(str) + 1;
       var ret = stackAlloc(size);
@@ -2332,6 +2202,7 @@ __asyncjs__JSWaitForRAF.sig = 'v';
   
   var wasmTableMirror = [];
   
+  /** @type {WebAssembly.Table} */
   var wasmTable;
   var getWasmTableEntry = (funcPtr) => {
       var func = wasmTableMirror[funcPtr];
@@ -2347,10 +2218,10 @@ __asyncjs__JSWaitForRAF.sig = 'v';
   
   var WebGPU = {
   errorCallback:(callback, type, message, userdata) => {
-        withStackSave(() => {
-          var messagePtr = stringToUTF8OnStack(message);
-          getWasmTableEntry(callback)(type, messagePtr, userdata);
-        });
+        var sp = stackSave();
+        var messagePtr = stringToUTF8OnStack(message);
+        getWasmTableEntry(callback)(type, messagePtr, userdata);
+        stackRestore(sp);
       },
   initManagers:() => {
         if (WebGPU.mgrDevice) return;
@@ -2496,10 +2367,57 @@ __asyncjs__JSWaitForRAF.sig = 'v';
         if (entryPointPtr) desc["entryPoint"] = UTF8ToString(entryPointPtr);
         return desc;
       },
+  fillLimitStruct:(limits, supportedLimitsOutPtr) => {
+        var limitsOutPtr = supportedLimitsOutPtr + 8;
+  
+        function setLimitValueU32(name, limitOffset) {
+          var limitValue = limits[name];
+          HEAP32[(((limitsOutPtr)+(limitOffset))>>2)] = limitValue;
+        }
+        function setLimitValueU64(name, limitOffset) {
+          var limitValue = limits[name];
+          (tempI64 = [limitValue>>>0,(tempDouble = limitValue,(+(Math.abs(tempDouble))) >= 1.0 ? (tempDouble > 0.0 ? (+(Math.floor((tempDouble)/4294967296.0)))>>>0 : (~~((+(Math.ceil((tempDouble - +(((~~(tempDouble)))>>>0))/4294967296.0)))))>>>0) : 0)], HEAP32[(((limitsOutPtr)+(limitOffset))>>2)] = tempI64[0],HEAP32[(((limitsOutPtr)+((limitOffset)+(4)))>>2)] = tempI64[1]);
+        }
+    
+        setLimitValueU32('maxTextureDimension1D', 0);
+        setLimitValueU32('maxTextureDimension2D', 4);
+        setLimitValueU32('maxTextureDimension3D', 8);
+        setLimitValueU32('maxTextureArrayLayers', 12);
+        setLimitValueU32('maxBindGroups', 16);
+        setLimitValueU32('maxBindGroupsPlusVertexBuffers', 20);
+        setLimitValueU32('maxBindingsPerBindGroup', 24);
+        setLimitValueU32('maxDynamicUniformBuffersPerPipelineLayout', 28);
+        setLimitValueU32('maxDynamicStorageBuffersPerPipelineLayout', 32);
+        setLimitValueU32('maxSampledTexturesPerShaderStage', 36);
+        setLimitValueU32('maxSamplersPerShaderStage', 40);
+        setLimitValueU32('maxStorageBuffersPerShaderStage', 44);
+        setLimitValueU32('maxStorageTexturesPerShaderStage', 48);
+        setLimitValueU32('maxUniformBuffersPerShaderStage', 52);
+        setLimitValueU32('minUniformBufferOffsetAlignment', 72);
+        setLimitValueU32('minStorageBufferOffsetAlignment', 76);
+    
+        setLimitValueU64('maxUniformBufferBindingSize', 56);
+        setLimitValueU64('maxStorageBufferBindingSize', 64);
+    
+        setLimitValueU32('maxVertexBuffers', 80);
+        setLimitValueU64('maxBufferSize', 88);
+        setLimitValueU32('maxVertexAttributes', 96);
+        setLimitValueU32('maxVertexBufferArrayStride', 100);
+        setLimitValueU32('maxInterStageShaderComponents', 104);
+        setLimitValueU32('maxInterStageShaderVariables', 108);
+        setLimitValueU32('maxColorAttachments', 112);
+        setLimitValueU32('maxColorAttachmentBytesPerSample', 116);
+        setLimitValueU32('maxComputeWorkgroupStorageSize', 120);
+        setLimitValueU32('maxComputeInvocationsPerWorkgroup', 124);
+        setLimitValueU32('maxComputeWorkgroupSizeX', 128);
+        setLimitValueU32('maxComputeWorkgroupSizeY', 132);
+        setLimitValueU32('maxComputeWorkgroupSizeZ', 136);
+        setLimitValueU32('maxComputeWorkgroupsPerDimension', 140);
+      },
   Int_BufferMapState:{
-  unmapped:0,
-  pending:1,
-  mapped:2,
+  unmapped:1,
+  pending:2,
+  mapped:3,
   },
   Int_CompilationMessageType:{
   error:0,
@@ -2507,8 +2425,9 @@ __asyncjs__JSWaitForRAF.sig = 'v';
   info:2,
   },
   Int_DeviceLostReason:{
-  undefined:0,
-  destroyed:1,
+  undefined:1,
+  unknown:1,
+  destroyed:2,
   },
   Int_PreferredFormat:{
   rgba8unorm:18,
@@ -2516,6 +2435,7 @@ __asyncjs__JSWaitForRAF.sig = 'v';
   },
   WGSLFeatureName:[,"readonly_and_readwrite_storage_textures","packed_4x8_integer_dot_product","unrestricted_pointer_parameters","pointer_composite_access"],
   AddressMode:[,"clamp-to-edge","repeat","mirror-repeat"],
+  AlphaMode:[,"opaque","premultiplied"],
   BlendFactor:[,"zero","one","src","one-minus-src","src-alpha","one-minus-src-alpha","dst","one-minus-dst","dst-alpha","one-minus-dst-alpha","src-alpha-saturated","constant","one-minus-constant"],
   BlendOperation:[,"add","subtract","reverse-subtract","min","max"],
   BufferBindingType:[,"uniform","storage","read-only-storage"],
@@ -2571,28 +2491,20 @@ __asyncjs__JSWaitForRAF.sig = 'v';
   },
   };
   var _wgpuBindGroupLayoutReference = (id) => WebGPU.mgrBindGroupLayout.reference(id);
-  _wgpuBindGroupLayoutReference.sig = 'vp';
 
   var _wgpuBindGroupLayoutRelease = (id) => WebGPU.mgrBindGroupLayout.release(id);
-  _wgpuBindGroupLayoutRelease.sig = 'vp';
 
   var _wgpuBindGroupReference = (id) => WebGPU.mgrBindGroup.reference(id);
-  _wgpuBindGroupReference.sig = 'vp';
 
   var _wgpuBindGroupRelease = (id) => WebGPU.mgrBindGroup.release(id);
-  _wgpuBindGroupRelease.sig = 'vp';
 
   var _wgpuBufferReference = (id) => WebGPU.mgrBuffer.reference(id);
-  _wgpuBufferReference.sig = 'vp';
 
   var _wgpuBufferRelease = (id) => WebGPU.mgrBuffer.release(id);
-  _wgpuBufferRelease.sig = 'vp';
 
   var _wgpuCommandBufferReference = (id) => WebGPU.mgrCommandBuffer.reference(id);
-  _wgpuCommandBufferReference.sig = 'vp';
 
   var _wgpuCommandBufferRelease = (id) => WebGPU.mgrCommandBuffer.release(id);
-  _wgpuCommandBufferRelease.sig = 'vp';
 
   
   var _wgpuCommandEncoderBeginRenderPass = (encoderId, descriptor) => {
@@ -2703,22 +2615,18 @@ __asyncjs__JSWaitForRAF.sig = 'v';
       var desc = makeRenderPassDescriptor(descriptor);
   
       var commandEncoder = WebGPU.mgrCommandEncoder.get(encoderId);
-      return WebGPU.mgrRenderPassEncoder.create(commandEncoder["beginRenderPass"](desc));
+      return WebGPU.mgrRenderPassEncoder.create(commandEncoder.beginRenderPass(desc));
     };
-  _wgpuCommandEncoderBeginRenderPass.sig = 'ppp';
 
   var _wgpuCommandEncoderFinish = (encoderId, descriptor) => {
       // TODO: Use the descriptor.
       var commandEncoder = WebGPU.mgrCommandEncoder.get(encoderId);
-      return WebGPU.mgrCommandBuffer.create(commandEncoder["finish"]());
+      return WebGPU.mgrCommandBuffer.create(commandEncoder.finish());
     };
-  _wgpuCommandEncoderFinish.sig = 'ppp';
 
   var _wgpuCommandEncoderReference = (id) => WebGPU.mgrCommandEncoder.reference(id);
-  _wgpuCommandEncoderReference.sig = 'vp';
 
   var _wgpuCommandEncoderRelease = (id) => WebGPU.mgrCommandEncoder.release(id);
-  _wgpuCommandEncoderRelease.sig = 'vp';
 
   var readI53FromI64 = (ptr) => {
       return HEAPU32[((ptr)>>2)] + HEAP32[(((ptr)+(4))>>2)] * 4294967296;
@@ -2785,9 +2693,8 @@ __asyncjs__JSWaitForRAF.sig = 'v';
       if (labelPtr) desc["label"] = UTF8ToString(labelPtr);
   
       var device = WebGPU.mgrDevice.get(deviceId);
-      return WebGPU.mgrBindGroup.create(device["createBindGroup"](desc));
+      return WebGPU.mgrBindGroup.create(device.createBindGroup(desc));
     };
-  _wgpuDeviceCreateBindGroup.sig = 'ppp';
 
   
   var _wgpuDeviceCreateBindGroupLayout = (deviceId, descriptor) => {
@@ -2887,9 +2794,8 @@ __asyncjs__JSWaitForRAF.sig = 'v';
       if (labelPtr) desc["label"] = UTF8ToString(labelPtr);
   
       var device = WebGPU.mgrDevice.get(deviceId);
-      return WebGPU.mgrBindGroupLayout.create(device["createBindGroupLayout"](desc));
+      return WebGPU.mgrBindGroupLayout.create(device.createBindGroupLayout(desc));
     };
-  _wgpuDeviceCreateBindGroupLayout.sig = 'ppp';
 
   
   var _wgpuDeviceCreateBuffer = (deviceId, descriptor) => {
@@ -2908,14 +2814,13 @@ __asyncjs__JSWaitForRAF.sig = 'v';
   
       var device = WebGPU.mgrDevice.get(deviceId);
       var bufferWrapper = {};
-      var id = WebGPU.mgrBuffer.create(device["createBuffer"](desc), bufferWrapper);
+      var id = WebGPU.mgrBuffer.create(device.createBuffer(desc), bufferWrapper);
       if (mappedAtCreation) {
         bufferWrapper.mapMode = 2;
         bufferWrapper.onUnmap = [];
       }
       return id;
     };
-  _wgpuDeviceCreateBuffer.sig = 'ppp';
 
   
   var _wgpuDeviceCreateCommandEncoder = (deviceId, descriptor) => {
@@ -2929,9 +2834,8 @@ __asyncjs__JSWaitForRAF.sig = 'v';
         if (labelPtr) desc["label"] = UTF8ToString(labelPtr);
       }
       var device = WebGPU.mgrDevice.get(deviceId);
-      return WebGPU.mgrCommandEncoder.create(device["createCommandEncoder"](desc));
+      return WebGPU.mgrCommandEncoder.create(device.createCommandEncoder(desc));
     };
-  _wgpuDeviceCreateCommandEncoder.sig = 'ppp';
 
   
   var _wgpuDeviceCreatePipelineLayout = (deviceId, descriptor) => {
@@ -2951,9 +2855,8 @@ __asyncjs__JSWaitForRAF.sig = 'v';
       if (labelPtr) desc["label"] = UTF8ToString(labelPtr);
   
       var device = WebGPU.mgrDevice.get(deviceId);
-      return WebGPU.mgrPipelineLayout.create(device["createPipelineLayout"](desc));
+      return WebGPU.mgrPipelineLayout.create(device.createPipelineLayout(desc));
     };
-  _wgpuDeviceCreatePipelineLayout.sig = 'ppp';
 
   
   var generateRenderPipelineDesc = (descriptor) => {
@@ -3163,9 +3066,8 @@ __asyncjs__JSWaitForRAF.sig = 'v';
   var _wgpuDeviceCreateRenderPipeline = (deviceId, descriptor) => {
       var desc = generateRenderPipelineDesc(descriptor);
       var device = WebGPU.mgrDevice.get(deviceId);
-      return WebGPU.mgrRenderPipeline.create(device["createRenderPipeline"](desc));
+      return WebGPU.mgrRenderPipeline.create(device.createRenderPipeline(desc));
     };
-  _wgpuDeviceCreateRenderPipeline.sig = 'ppp';
 
   
   var _wgpuDeviceCreateShaderModule = (deviceId, descriptor) => {
@@ -3200,9 +3102,8 @@ __asyncjs__JSWaitForRAF.sig = 'v';
       }
   
       var device = WebGPU.mgrDevice.get(deviceId);
-      return WebGPU.mgrShaderModule.create(device["createShaderModule"](desc));
+      return WebGPU.mgrShaderModule.create(device.createShaderModule(desc));
     };
-  _wgpuDeviceCreateShaderModule.sig = 'ppp';
 
   var _wgpuDeviceCreateSwapChain = (deviceId, surfaceId, descriptor) => {
       assert(descriptor);assert(HEAPU32[((descriptor)>>2)] === 0);
@@ -3232,11 +3133,10 @@ __asyncjs__JSWaitForRAF.sig = 'v';
         "usage": HEAPU32[(((descriptor)+(8))>>2)],
         "alphaMode": "opaque",
       };
-      context["configure"](configuration);
+      context.configure(configuration);
   
       return WebGPU.mgrSwapChain.create(context);
     };
-  _wgpuDeviceCreateSwapChain.sig = 'pppp';
 
   var _wgpuDeviceGetQueue = (deviceId) => {
       var queueId = WebGPU.mgrDevice.objects[deviceId].queueId;
@@ -3245,13 +3145,10 @@ __asyncjs__JSWaitForRAF.sig = 'v';
       WebGPU.mgrQueue.reference(queueId);
       return queueId;
     };
-  _wgpuDeviceGetQueue.sig = 'pp';
 
   var _wgpuDeviceReference = (id) => WebGPU.mgrDevice.reference(id);
-  _wgpuDeviceReference.sig = 'vp';
 
   var _wgpuDeviceRelease = (id) => WebGPU.mgrDevice.release(id);
-  _wgpuDeviceRelease.sig = 'vp';
 
   var handleException = (e) => {
       // Certain exception types we do not treat as errors since they are used for
@@ -3282,7 +3179,6 @@ __asyncjs__JSWaitForRAF.sig = 'v';
       }
       quit_(code, new ExitStatus(code));
     };
-  _proc_exit.sig = 'vi';
   
   /** @suppress {duplicate } */
   /** @param {boolean|number=} implicit */
@@ -3300,7 +3196,6 @@ __asyncjs__JSWaitForRAF.sig = 'v';
       _proc_exit(status);
     };
   var _exit = exitJS;
-  _exit.sig = 'vi';
   
   
   var maybeExit = () => {
@@ -3327,7 +3222,7 @@ __asyncjs__JSWaitForRAF.sig = 'v';
   
   var _wgpuDeviceSetUncapturedErrorCallback = (deviceId, callback, userdata) => {
       var device = WebGPU.mgrDevice.get(deviceId);
-      device["onuncapturederror"] = function(ev) {
+      device.onuncapturederror = function(ev) {
         // This will skip the callback if the runtime is no longer alive.
         callUserCallback(() => {
           // WGPUErrorType type, const char* message, void* userdata
@@ -3344,7 +3239,6 @@ __asyncjs__JSWaitForRAF.sig = 'v';
         });
       };
     };
-  _wgpuDeviceSetUncapturedErrorCallback.sig = 'vppp';
 
   var maybeCStringToJsString = (cString) => {
       // "cString > 2" checks if the input is a number, and isn't of the special
@@ -3354,6 +3248,7 @@ __asyncjs__JSWaitForRAF.sig = 'v';
       return cString > 2 ? UTF8ToString(cString) : cString;
     };
   
+  /** @type {Object} */
   var specialHTMLTargets = [0, typeof document != 'undefined' ? document : 0, typeof window != 'undefined' ? window : 0];
   /** @suppress {duplicate } */
   var findEventTarget = (target) => {
@@ -3386,32 +3281,26 @@ __asyncjs__JSWaitForRAF.sig = 'v';
   
       return WebGPU.mgrSurface.create(context);
     };
-  _wgpuInstanceCreateSurface.sig = 'ppp';
 
   var _wgpuPipelineLayoutRelease = (id) => WebGPU.mgrPipelineLayout.release(id);
-  _wgpuPipelineLayoutRelease.sig = 'vp';
 
   var _wgpuQuerySetRelease = (id) => WebGPU.mgrQuerySet.release(id);
-  _wgpuQuerySetRelease.sig = 'vp';
 
   var _wgpuQueueReference = (id) => WebGPU.mgrQueue.reference(id);
-  _wgpuQueueReference.sig = 'vp';
 
   var _wgpuQueueRelease = (id) => WebGPU.mgrQueue.release(id);
-  _wgpuQueueRelease.sig = 'vp';
 
   var _wgpuQueueSubmit = (queueId, commandCount, commands) => {
       assert(commands % 4 === 0);
       var queue = WebGPU.mgrQueue.get(queueId);
       var cmds = Array.from(HEAP32.subarray((((commands)>>2)), ((commands + commandCount * 4)>>2)),
-        function(id) { return WebGPU.mgrCommandBuffer.get(id); });
-      queue["submit"](cmds);
+        (id) => WebGPU.mgrCommandBuffer.get(id));
+      queue.submit(cmds);
     };
-  _wgpuQueueSubmit.sig = 'vppp';
 
   
   function _wgpuQueueWriteBuffer(queueId,bufferId,bufferOffset_low, bufferOffset_high,data,size) {
-    var bufferOffset = convertI32PairToI53Checked(bufferOffset_low, bufferOffset_high);;
+    var bufferOffset = convertI32PairToI53Checked(bufferOffset_low, bufferOffset_high);
   
     
       var queue = WebGPU.mgrQueue.get(queueId);
@@ -3419,114 +3308,94 @@ __asyncjs__JSWaitForRAF.sig = 'v';
       // There is a size limitation for ArrayBufferView. Work around by passing in a subarray
       // instead of the whole heap. crbug.com/1201109
       var subarray = HEAPU8.subarray(data, data + size);
-      queue["writeBuffer"](buffer, bufferOffset, subarray, 0, size);
+      queue.writeBuffer(buffer, bufferOffset, subarray, 0, size);
     ;
   }
-  _wgpuQueueWriteBuffer.sig = 'vppiipp';
 
   var _wgpuRenderPassEncoderDraw = (passId, vertexCount, instanceCount, firstVertex, firstInstance) => {
       var pass = WebGPU.mgrRenderPassEncoder.get(passId);
-      pass["draw"](vertexCount, instanceCount, firstVertex, firstInstance);
+      pass.draw(vertexCount, instanceCount, firstVertex, firstInstance);
     };
-  _wgpuRenderPassEncoderDraw.sig = 'vpiiii';
 
   var _wgpuRenderPassEncoderEnd = (encoderId) => {
       var encoder = WebGPU.mgrRenderPassEncoder.get(encoderId);
-      encoder["end"]();
+      encoder.end();
     };
-  _wgpuRenderPassEncoderEnd.sig = 'vp';
 
   var _wgpuRenderPassEncoderReference = (id) => WebGPU.mgrRenderPassEncoder.reference(id);
-  _wgpuRenderPassEncoderReference.sig = 'vp';
 
   var _wgpuRenderPassEncoderRelease = (id) => WebGPU.mgrRenderPassEncoder.release(id);
-  _wgpuRenderPassEncoderRelease.sig = 'vp';
 
   var _wgpuRenderPassEncoderSetBindGroup = (passId, groupIndex, groupId, dynamicOffsetCount, dynamicOffsetsPtr) => {
       var pass = WebGPU.mgrRenderPassEncoder.get(passId);
       var group = WebGPU.mgrBindGroup.get(groupId);
       if (dynamicOffsetCount == 0) {
-        pass["setBindGroup"](groupIndex, group);
+        pass.setBindGroup(groupIndex, group);
       } else {
         var offsets = [];
         for (var i = 0; i < dynamicOffsetCount; i++, dynamicOffsetsPtr += 4) {
           offsets.push(HEAPU32[((dynamicOffsetsPtr)>>2)]);
         }
-        pass["setBindGroup"](groupIndex, group, offsets);
+        pass.setBindGroup(groupIndex, group, offsets);
       }
     };
-  _wgpuRenderPassEncoderSetBindGroup.sig = 'vpippp';
 
   
   function _wgpuRenderPassEncoderSetIndexBuffer(passId,bufferId,format,offset_low, offset_high,size_low, size_high) {
-    var offset = convertI32PairToI53Checked(offset_low, offset_high);;
-    var size = convertI32PairToI53Checked(size_low, size_high);;
+    var offset = convertI32PairToI53Checked(offset_low, offset_high);
+    var size = convertI32PairToI53Checked(size_low, size_high);
   
     
       var pass = WebGPU.mgrRenderPassEncoder.get(passId);
       var buffer = WebGPU.mgrBuffer.get(bufferId);
       if (size == -1) size = undefined;
-      pass["setIndexBuffer"](buffer, WebGPU.IndexFormat[format], offset, size);
+      pass.setIndexBuffer(buffer, WebGPU.IndexFormat[format], offset, size);
     ;
   }
-  _wgpuRenderPassEncoderSetIndexBuffer.sig = 'vppiiiii';
 
   var _wgpuRenderPassEncoderSetPipeline = (passId, pipelineId) => {
       var pass = WebGPU.mgrRenderPassEncoder.get(passId);
       var pipeline = WebGPU.mgrRenderPipeline.get(pipelineId);
-      pass["setPipeline"](pipeline);
+      pass.setPipeline(pipeline);
     };
-  _wgpuRenderPassEncoderSetPipeline.sig = 'vpp';
 
   
   function _wgpuRenderPassEncoderSetVertexBuffer(passId,slot,bufferId,offset_low, offset_high,size_low, size_high) {
-    var offset = convertI32PairToI53Checked(offset_low, offset_high);;
-    var size = convertI32PairToI53Checked(size_low, size_high);;
+    var offset = convertI32PairToI53Checked(offset_low, offset_high);
+    var size = convertI32PairToI53Checked(size_low, size_high);
   
     
       var pass = WebGPU.mgrRenderPassEncoder.get(passId);
       var buffer = WebGPU.mgrBuffer.get(bufferId);
       if (size == -1) size = undefined;
-      pass["setVertexBuffer"](slot, buffer, offset, size);
+      pass.setVertexBuffer(slot, buffer, offset, size);
     ;
   }
-  _wgpuRenderPassEncoderSetVertexBuffer.sig = 'vpipiiii';
 
   var _wgpuRenderPipelineReference = (id) => WebGPU.mgrRenderPipeline.reference(id);
-  _wgpuRenderPipelineReference.sig = 'vp';
 
   var _wgpuRenderPipelineRelease = (id) => WebGPU.mgrRenderPipeline.release(id);
-  _wgpuRenderPipelineRelease.sig = 'vp';
 
   var _wgpuSamplerReference = (id) => WebGPU.mgrSampler.reference(id);
-  _wgpuSamplerReference.sig = 'vp';
 
   var _wgpuSamplerRelease = (id) => WebGPU.mgrSampler.release(id);
-  _wgpuSamplerRelease.sig = 'vp';
 
   var _wgpuShaderModuleReference = (id) => WebGPU.mgrShaderModule.reference(id);
-  _wgpuShaderModuleReference.sig = 'vp';
 
   var _wgpuShaderModuleRelease = (id) => WebGPU.mgrShaderModule.release(id);
-  _wgpuShaderModuleRelease.sig = 'vp';
 
   var _wgpuSurfaceReference = (id) => WebGPU.mgrSurface.reference(id);
-  _wgpuSurfaceReference.sig = 'vp';
 
   var _wgpuSurfaceRelease = (id) => WebGPU.mgrSurface.release(id);
-  _wgpuSurfaceRelease.sig = 'vp';
 
   var _wgpuSwapChainGetCurrentTexture = (swapChainId) => {
       var context = WebGPU.mgrSwapChain.get(swapChainId);
-      return WebGPU.mgrTexture.create(context["getCurrentTexture"]());
+      return WebGPU.mgrTexture.create(context.getCurrentTexture());
     };
-  _wgpuSwapChainGetCurrentTexture.sig = 'pp';
 
   var _wgpuSwapChainReference = (id) => WebGPU.mgrSwapChain.reference(id);
-  _wgpuSwapChainReference.sig = 'vp';
 
   var _wgpuSwapChainRelease = (id) => WebGPU.mgrSwapChain.release(id);
-  _wgpuSwapChainRelease.sig = 'vp';
 
   
   var _wgpuTextureCreateView = (textureId, descriptor) => {
@@ -3552,21 +3421,16 @@ __asyncjs__JSWaitForRAF.sig = 'v';
       }
   
       var texture = WebGPU.mgrTexture.get(textureId);
-      return WebGPU.mgrTextureView.create(texture["createView"](desc));
+      return WebGPU.mgrTextureView.create(texture.createView(desc));
     };
-  _wgpuTextureCreateView.sig = 'ppp';
 
   var _wgpuTextureReference = (id) => WebGPU.mgrTexture.reference(id);
-  _wgpuTextureReference.sig = 'vp';
 
   var _wgpuTextureRelease = (id) => WebGPU.mgrTexture.release(id);
-  _wgpuTextureRelease.sig = 'vp';
 
   var _wgpuTextureViewReference = (id) => WebGPU.mgrTextureView.reference(id);
-  _wgpuTextureViewReference.sig = 'vp';
 
   var _wgpuTextureViewRelease = (id) => WebGPU.mgrTextureView.release(id);
-  _wgpuTextureViewRelease.sig = 'vp';
 
 
 
@@ -3604,39 +3468,28 @@ __asyncjs__JSWaitForRAF.sig = 'v';
   var runtimeKeepalivePush = () => {
       runtimeKeepaliveCounter += 1;
     };
-  runtimeKeepalivePush.sig = 'v';
   
   var runtimeKeepalivePop = () => {
       assert(runtimeKeepaliveCounter > 0);
       runtimeKeepaliveCounter -= 1;
     };
-  runtimeKeepalivePop.sig = 'v';
   var Asyncify = {
   instrumentWasmImports(imports) {
+        assert('Suspending' in WebAssembly, 'JSPI not supported by current environment. Perhaps it needs to be enabled via flags?');
         var importPattern = /^(invoke_.*|__asyncjs__.*)$/;
   
         for (let [x, original] of Object.entries(imports)) {
-          let sig = original.sig;
           if (typeof original == 'function') {
             let isAsyncifyImport = original.isAsync || importPattern.test(x);
             // Wrap async imports with a suspending WebAssembly function.
             if (isAsyncifyImport) {
-              assert(sig, `Missing __sig for ${x}`);
-              let type = sigToWasmTypes(sig);
-              // Add space for the suspender promise that will be used in the
-              // Wasm wrapper function.
-              type.parameters.unshift('externref');
-              imports[x] = original = new WebAssembly.Function(
-                type,
-                original,
-                { suspending: 'first' }
-              );
+              imports[x] = original = new WebAssembly.Suspending(original);
             }
           }
         }
       },
   instrumentWasmExports(exports) {
-        var exportPattern = /^(main|__main_argc_argv|_ZN10emscripten8internal5async.*)$/;
+        var exportPattern = /^(main|__main_argc_argv)$/;
         Asyncify.asyncExports = new Set();
         var ret = {};
         for (let [x, original] of Object.entries(exports)) {
@@ -3672,18 +3525,7 @@ __asyncjs__JSWaitForRAF.sig = 'v';
         return Asyncify.handleAsync(() => new Promise(startAsync));
       },
   makeAsyncFunction(original) {
-        // TODO: remove `WebAssembly.Function.type` call when the new API is ready on all the testers.
-        var type = original.type ? original.type() : WebAssembly.Function.type(original);
-        var parameters = type.parameters;
-        var results = type.results;
-        assert(results.length !== 0, 'There must be a return result')
-        assert(parameters[0] === 'externref', 'First param must be externref.');
-        // Remove the extern ref.
-        parameters.shift();
-        return new WebAssembly.Function(
-          { parameters , results: ['externref'] },
-          original,
-          { promising : 'first' });
+        return WebAssembly.promising(original);
       },
   };
 embind_init_charCodes();
@@ -3698,13 +3540,15 @@ var wasmImports = {
   /** @export */
   __assert_fail: ___assert_fail,
   /** @export */
-  __asyncjs__JSInitDevice: __asyncjs__JSInitDevice,
+  __asyncjs__JSInitDevice,
   /** @export */
-  __asyncjs__JSWaitForNextEvent: __asyncjs__JSWaitForNextEvent,
+  __asyncjs__JSWaitForNextEvent,
   /** @export */
-  __asyncjs__JSWaitForRAF: __asyncjs__JSWaitForRAF,
+  __asyncjs__JSWaitForRAF,
   /** @export */
   __cxa_throw: ___cxa_throw,
+  /** @export */
+  _abort_js: __abort_js,
   /** @export */
   _embind_register_bigint: __embind_register_bigint,
   /** @export */
@@ -3724,6 +3568,8 @@ var wasmImports = {
   /** @export */
   _embind_register_void: __embind_register_void,
   /** @export */
+  _emscripten_memcpy_js: __emscripten_memcpy_js,
+  /** @export */
   _emval_as: __emval_as,
   /** @export */
   _emval_call_method: __emval_call_method,
@@ -3742,13 +3588,9 @@ var wasmImports = {
   /** @export */
   _emval_run_destructors: __emval_run_destructors,
   /** @export */
-  abort: _abort,
-  /** @export */
   emscripten_asm_const_double: _emscripten_asm_const_double,
   /** @export */
   emscripten_asm_const_int: _emscripten_asm_const_int,
-  /** @export */
-  emscripten_memcpy_js: _emscripten_memcpy_js,
   /** @export */
   emscripten_resize_heap: _emscripten_resize_heap,
   /** @export */
@@ -3868,28 +3710,25 @@ var wasmImports = {
   /** @export */
   wgpuTextureViewRelease: _wgpuTextureViewRelease
 };
-Asyncify.instrumentWasmImports(wasmImports);
 var wasmExports = createWasm();
-var ___wasm_call_ctors = createExportWrapper('__wasm_call_ctors');
-var _malloc = createExportWrapper('malloc');
-var _free = createExportWrapper('free');
-var _main = Module['_main'] = createExportWrapper('__main_argc_argv');
-var _fflush = createExportWrapper('fflush');
-var ___getTypeName = createExportWrapper('__getTypeName');
-var _memalign = createExportWrapper('memalign');
-var setTempRet0 = createExportWrapper('setTempRet0');
+var ___wasm_call_ctors = createExportWrapper('__wasm_call_ctors', 0);
+var ___getTypeName = createExportWrapper('__getTypeName', 1);
+var _malloc = createExportWrapper('malloc', 1);
+var _free = createExportWrapper('free', 1);
+var _main = Module['_main'] = createExportWrapper('__main_argc_argv', 2);
+var _fflush = createExportWrapper('fflush', 1);
+var _strerror = createExportWrapper('strerror', 1);
+var _memalign = createExportWrapper('memalign', 2);
+var __emscripten_tempret_set = createExportWrapper('_emscripten_tempret_set', 1);
 var _emscripten_stack_init = () => (_emscripten_stack_init = wasmExports['emscripten_stack_init'])();
 var _emscripten_stack_get_free = () => (_emscripten_stack_get_free = wasmExports['emscripten_stack_get_free'])();
 var _emscripten_stack_get_base = () => (_emscripten_stack_get_base = wasmExports['emscripten_stack_get_base'])();
 var _emscripten_stack_get_end = () => (_emscripten_stack_get_end = wasmExports['emscripten_stack_get_end'])();
-var stackSave = createExportWrapper('stackSave');
-var stackRestore = createExportWrapper('stackRestore');
-var stackAlloc = createExportWrapper('stackAlloc');
+var __emscripten_stack_restore = (a0) => (__emscripten_stack_restore = wasmExports['_emscripten_stack_restore'])(a0);
+var __emscripten_stack_alloc = (a0) => (__emscripten_stack_alloc = wasmExports['_emscripten_stack_alloc'])(a0);
 var _emscripten_stack_get_current = () => (_emscripten_stack_get_current = wasmExports['emscripten_stack_get_current'])();
-var ___cxa_is_pointer_type = createExportWrapper('__cxa_is_pointer_type');
-var dynCall_jiji = Module['dynCall_jiji'] = createExportWrapper('dynCall_jiji');
-var ___start_em_js = Module['___start_em_js'] = 4211720;
-var ___stop_em_js = Module['___stop_em_js'] = 4213633;
+var dynCall_jiji = Module['dynCall_jiji'] = createExportWrapper('dynCall_jiji', 5);
+
 
 // include: postamble.js
 // === Auto-generated postamble setup entry stuff ===
@@ -3903,12 +3742,11 @@ var missingLibrarySymbols = [
   'readI53FromU64',
   'convertI32PairToI53',
   'convertU32PairToI53',
+  'getTempRet0',
+  'setTempRet0',
   'zeroMemory',
   'growMemory',
-  'isLeapYear',
-  'ydayFromDate',
-  'arraySum',
-  'addDays',
+  'strError',
   'inetPton4',
   'inetNtop4',
   'inetPton6',
@@ -3917,9 +3755,7 @@ var missingLibrarySymbols = [
   'writeSockaddr',
   'initRandomFill',
   'randomFill',
-  'getCallstack',
   'emscriptenLog',
-  'convertPCtoSourceLocation',
   'runMainThreadEmAsm',
   'jstoi_q',
   'getExecutableName',
@@ -3930,7 +3766,6 @@ var missingLibrarySymbols = [
   'dynCall',
   'asmjsMangle',
   'asyncLoad',
-  'alignMemory',
   'mmapAlloc',
   'HandleAllocator',
   'getNativeTypeSize',
@@ -4000,7 +3835,8 @@ var missingLibrarySymbols = [
   'setCanvasElementSize',
   'getCanvasElementSize',
   'jsStackTrace',
-  'stackTrace',
+  'getCallstack',
+  'convertPCtoSourceLocation',
   'getEnvStrings',
   'checkWasiClock',
   'wasiRightsToMuslOFlags',
@@ -4017,14 +3853,18 @@ var missingLibrarySymbols = [
   'findMatchingCatch',
   'Browser_asyncPrepareDataCounter',
   'setMainLoop',
+  'isLeapYear',
+  'ydayFromDate',
+  'arraySum',
+  'addDays',
   'getSocketFromFD',
   'getSocketAddress',
   'FS_createPreloadedFile',
   'FS_modeStringToFlags',
   'FS_getMode',
   'FS_stdin_getChar',
-  'FS_createDataFile',
   'FS_unlink',
+  'FS_createDataFile',
   'FS_mkdirTree',
   '_setNetworkCallback',
   'heapObjectForWebGLType',
@@ -4033,6 +3873,9 @@ var missingLibrarySymbols = [
   'webgl_enable_OES_vertex_array_object',
   'webgl_enable_WEBGL_draw_buffers',
   'webgl_enable_WEBGL_multi_draw',
+  'webgl_enable_EXT_polygon_offset_clamp',
+  'webgl_enable_EXT_clip_control',
+  'webgl_enable_WEBGL_polygon_mode',
   'emscriptenWebGLGet',
   'computeUnpackAlignedImageSize',
   'colorChannelsInGlTextureFormat',
@@ -4045,9 +3888,6 @@ var missingLibrarySymbols = [
   '__glGetActiveAttribOrUniform',
   'writeGLArray',
   'registerWebGlEventCallback',
-  'SDL_unicode',
-  'SDL_ttfContext',
-  'SDL_audio',
   'ALLOC_NORMAL',
   'ALLOC_STACK',
   'allocate',
@@ -4055,6 +3895,7 @@ var missingLibrarySymbols = [
   'writeAsciiToMemory',
   'setErrNo',
   'demangle',
+  'stackTrace',
   'getFunctionName',
   'getFunctionArgsName',
   'heap32VectorToArray',
@@ -4112,44 +3953,30 @@ var unexportedSymbols = [
   'addOnPostRun',
   'addRunDependency',
   'removeRunDependency',
-  'FS_createFolder',
-  'FS_createPath',
-  'FS_createLazyFile',
-  'FS_createLink',
-  'FS_createDevice',
-  'FS_readFile',
   'out',
   'err',
   'callMain',
   'abort',
   'wasmMemory',
   'wasmExports',
-  'stackAlloc',
-  'stackSave',
-  'stackRestore',
-  'getTempRet0',
-  'setTempRet0',
   'writeStackCookie',
   'checkStackCookie',
   'readI53FromI64',
   'convertI32PairToI53Checked',
+  'stackSave',
+  'stackRestore',
+  'stackAlloc',
   'ptrToString',
   'exitJS',
   'getHeapMax',
   'abortOnCannotGrowMemory',
   'ENV',
-  'MONTH_DAYS_REGULAR',
-  'MONTH_DAYS_LEAP',
-  'MONTH_DAYS_REGULAR_CUMULATIVE',
-  'MONTH_DAYS_LEAP_CUMULATIVE',
   'ERRNO_CODES',
-  'ERRNO_MESSAGES',
   'DNS',
   'Protocols',
   'Sockets',
   'timers',
   'warnOnce',
-  'UNWIND_CACHE',
   'readEmAsmArgsArray',
   'readEmAsmArgs',
   'runEmAsmFunction',
@@ -4160,6 +3987,7 @@ var unexportedSymbols = [
   'runtimeKeepalivePop',
   'callUserCallback',
   'maybeExit',
+  'alignMemory',
   'wasmTable',
   'noExitRuntime',
   'sigToWasmTypes',
@@ -4190,6 +4018,7 @@ var unexportedSymbols = [
   'findCanvasEventTarget',
   'currentFullscreenStrategy',
   'restoreOldWindowedStyle',
+  'UNWIND_CACHE',
   'ExitStatus',
   'flush_NO_FILESYSTEM',
   'promiseMap',
@@ -4200,10 +4029,18 @@ var unexportedSymbols = [
   'Browser',
   'getPreloadedImageData__data',
   'wget',
+  'MONTH_DAYS_REGULAR',
+  'MONTH_DAYS_LEAP',
+  'MONTH_DAYS_REGULAR_CUMULATIVE',
+  'MONTH_DAYS_LEAP_CUMULATIVE',
   'SYSCALLS',
   'preloadPlugins',
   'FS_stdin_getChar_buffer',
+  'FS_createPath',
+  'FS_createDevice',
+  'FS_readFile',
   'FS',
+  'FS_createLazyFile',
   'MEMFS',
   'TTY',
   'PIPEFS',
@@ -4226,6 +4063,8 @@ var unexportedSymbols = [
   'JsValStore',
   'allocateUTF8',
   'allocateUTF8OnStack',
+  'print',
+  'printErr',
   'InternalError',
   'BindingError',
   'throwInternalError',
@@ -4359,7 +4198,7 @@ function run(args = arguments_) {
 
     preMain();
 
-    if (Module['onRuntimeInitialized']) Module['onRuntimeInitialized']();
+    Module['onRuntimeInitialized']?.();
 
     if (shouldRunNow) callMain(args);
 
@@ -4368,10 +4207,8 @@ function run(args = arguments_) {
 
   if (Module['setStatus']) {
     Module['setStatus']('Running...');
-    setTimeout(function() {
-      setTimeout(function() {
-        Module['setStatus']('');
-      }, 1);
+    setTimeout(() => {
+      setTimeout(() => Module['setStatus'](''), 1);
       doRun();
     }, 1);
   } else
@@ -4424,5 +4261,5 @@ if (Module['noInitialRun']) shouldRunNow = false;
 
 run();
 
-
 // end include: postamble.js
+
