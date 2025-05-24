@@ -76,7 +76,7 @@ The operations are:
 <ul>
 <li> Event handling (mouse and keyboard events). <code>System.GetNextEvent()</code> blocks until a new event is received.
 <li> Swapping the frontbuffer and backbuffer. <code>Swapchain.Present()</code> may block until a new frame is available.
-<li> Buffer mapping. <code>Buffer.MapRead()</code>, <code>Buffer.MapWrite()</code>, and <code>Buffer.MapReadWrite()</code> may block until the graphics driver has made the buffer available for access.
+<li> Buffer mapping. <code>Buffer.Map()</code> may block until the graphics driver has made the buffer available for access.
 </ul>
 </body>
 </html>
