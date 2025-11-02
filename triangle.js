@@ -4293,16 +4293,16 @@ function checkIncomingModuleAPI() {
   ignoredModuleProp('fetchSettings');
 }
 var ASM_CONSTS = {
-  4211578: ($0, $1, $2, $3) => { createWindow($0, $1, $2, $3) },  
- 4211611: () => { return Module.numWindows; },  
- 4211641: () => { return Module.events.length; },  
- 4211674: () => { window.id },  
- 4211686: () => { return window.innerWidth },  
- 4211713: () => { return window.innerHeight },  
- 4211741: () => { return window.innerWidth },  
- 4211768: () => { return window.innerHeight },  
- 4211796: () => { return Date.now() / 1000.0; },  
- 4211828: () => { return WebGPU.Int_PreferredFormat[navigator.gpu.getPreferredCanvasFormat()]; }
+  4211338: ($0, $1, $2, $3) => { createWindow($0, $1, $2, $3) },  
+ 4211371: () => { return Module.numWindows; },  
+ 4211401: () => { return Module.events.length; },  
+ 4211434: () => { window.id },  
+ 4211446: () => { return window.innerWidth },  
+ 4211473: () => { return window.innerHeight },  
+ 4211501: () => { return window.innerWidth },  
+ 4211528: () => { return window.innerHeight },  
+ 4211556: () => { return Date.now() / 1000.0; },  
+ 4211588: () => { return WebGPU.Int_PreferredFormat[navigator.gpu.getPreferredCanvasFormat()]; }
 };
 function createWindow(x,y,width,height) { var w; var canvas; if (Module.numWindows === undefined) { Module.numWindows = 0; Module.events = []; Module.newInput = null; } if (Module.numWindows == 0) { w = window; canvas = w.document.getElementById("canvas"); canvas.width = width; canvas.height = height; Module.requestFullscreen = () => { canvas.requestFullscreen(); } } else { w = window.open("", "", "left=" + x + ", top=" + y + ", width=" + width + ", height=" + height); w.document.body.style.margin = 0; var canvas = w.document.createElement("canvas"); canvas.style.display = "block"; w.document.body.appendChild(canvas); } const events = ["mousedown", "mousemove", "mouseup", "touchstart", "touchmove", "touchend", "resize"]; var inputListener = (e) => { e.preventDefault(); Module.events.push(e); if (Module.newInput) Module.newInput(); }; events.forEach((eventType) => canvas.addEventListener(eventType, inputListener, { passive: false })); w.oncontextmenu = (e) => { e.preventDefault() }; specialHTMLTargets["!toucanvas"] = canvas; return w.id = Module.numWindows++; }
 function __asyncjs__JSWaitForNextEvent() { return Asyncify.handleAsync(async () => { if (Module.events.length == 0) { await new Promise(resolve => { Module.newInput = resolve; }); Module.newInput = null; } }); }
@@ -4314,8 +4314,8 @@ __asyncjs__JSWaitForRAF.sig = 'v';
 var ___getTypeName = makeInvalidEarlyAccess('___getTypeName');
 var _malloc = makeInvalidEarlyAccess('_malloc');
 var _free = makeInvalidEarlyAccess('_free');
-var _main = Module['_main'] = makeInvalidEarlyAccess('_main');
 var _fflush = makeInvalidEarlyAccess('_fflush');
+var _main = Module['_main'] = makeInvalidEarlyAccess('_main');
 var _emwgpuCreateBindGroup = makeInvalidEarlyAccess('_emwgpuCreateBindGroup');
 var _emwgpuCreateBindGroupLayout = makeInvalidEarlyAccess('_emwgpuCreateBindGroupLayout');
 var _emwgpuCreateCommandBuffer = makeInvalidEarlyAccess('_emwgpuCreateCommandBuffer');
@@ -4361,8 +4361,8 @@ function assignWasmExports(wasmExports) {
   ___getTypeName = createExportWrapper('__getTypeName', 1);
   _malloc = createExportWrapper('malloc', 1);
   _free = createExportWrapper('free', 1);
-  Module['_main'] = _main = createExportWrapper('__main_argc_argv', 2);
   _fflush = createExportWrapper('fflush', 1);
+  Module['_main'] = _main = createExportWrapper('__main_argc_argv', 2);
   _emwgpuCreateBindGroup = createExportWrapper('emwgpuCreateBindGroup', 1);
   _emwgpuCreateBindGroupLayout = createExportWrapper('emwgpuCreateBindGroupLayout', 1);
   _emwgpuCreateCommandBuffer = createExportWrapper('emwgpuCreateCommandBuffer', 1);
